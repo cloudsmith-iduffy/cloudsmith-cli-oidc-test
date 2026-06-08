@@ -15,7 +15,7 @@ jobs:
       - image: cimg/python:3.12
     environment:
       CLOUDSMITH_ORG: iduffy-demo
-      CLOUDSMITH_SERVICE_SLUG: circleci
+      CLOUDSMITH_SERVICE_SLUG: circlci
     steps:
       - run:
           name: Confirm OIDC token is present (no secret values)
