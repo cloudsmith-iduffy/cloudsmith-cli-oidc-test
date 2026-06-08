@@ -1,0 +1,54 @@
+# OIDC smoke test for cloudsmith-cli's CircleCI detector.
+#
+# This pipeline is intentionally public so it can serve as a verifiable proof
+# of the CircleCI OIDC auto-discovery flow. For that reason it must never print
+# secrets:
+#   - It does NOT use `cloudsmith --debug` (that logs the X-Api-Key header, i.e.
+#     the exchanged Cloudsmith token, into the public build log).
+#   - It prints only the *decoded claims* (iss/sub/aud) of the OIDC token, never
+#     the raw signed JWT (which is a short-lived bearer credential).
+version: 2.1
+
+jobs:
+  oidc-smoke-test:
+    docker:
+      - image: cimg/python:3.12
+    environment:
+      CLOUDSMITH_ORG: iduffy-demo
+      CLOUDSMITH_SERVICE_SLUG: circleci
+    steps:
+      - run:
+          name: Confirm OIDC token is present (no secret values)
+          command: |
+            echo "CIRCLECI=${CIRCLECI:-<unset>}"
+            if [ -n "${CIRCLE_OIDC_TOKEN_V2:-}" ]; then
+              echo "CIRCLE_OIDC_TOKEN_V2 is present"
+            else
+              echo "CIRCLE_OIDC_TOKEN_V2 is NOT set - enable OpenID Connect Tokens in Project Settings -> Advanced"
+              exit 1
+            fi
+      - run:
+          name: Show OIDC token claims (iss / sub / aud only)
+          command: |
+            python3 - <<'PY'
+            import base64, json, os
+            token = os.environ["CIRCLE_OIDC_TOKEN_V2"]
+            payload_b64 = token.split(".")[1]
+            payload_b64 += "=" * (-len(payload_b64) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload_b64))
+            for key in ("iss", "sub", "aud", "exp"):
+                print(f"{key}: {claims.get(key)}")
+            PY
+      - run:
+          name: Install cloudsmith-cli from the feature branch
+          command: pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/circleci"
+      - run:
+          name: OIDC auto-discovery round-trip
+          command: |
+            cloudsmith whoami --verbose
+            cloudsmith list repos "$CLOUDSMITH_ORG"
+
+workflows:
+  oidc-smoke-test:
+    jobs:
+      - oidc-smoke-test
