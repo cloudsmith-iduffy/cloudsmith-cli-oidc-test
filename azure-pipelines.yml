@@ -4,33 +4,38 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
-variables:
-  CLOUDSMITH_ORG: iduffy-demo
-  CLOUDSMITH_SERVICE_SLUG: default-v9ty
-
 steps:
-- task: UsePythonVersion@0
-  inputs:
-    versionSpec: '3.12'
-
 - task: Bash@3
-  displayName: 'OIDC smoke test via cloudsmith-cli'
+  displayName: 'OIDC diagnostic: api-version + claims'
   env:
-    # System.AccessToken is not exposed to scripts by default; map it in.
-    # System.OidcRequestUri is mapped explicitly so the detector reads it from env.
     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
-    CLOUDSMITH_ORG: $(CLOUDSMITH_ORG)
-    CLOUDSMITH_SERVICE_SLUG: $(CLOUDSMITH_SERVICE_SLUG)
   inputs:
     targetType: 'inline'
     script: |
-      set -euo pipefail
-      pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/azure-devops"
+      set -uo pipefail
 
-      echo "=== Phase 1: detection + OIDC token fetch (debug) ==="
-      cloudsmith whoami --debug
+      echo "=== request URI (host only) ==="
+      echo "$SYSTEM_OIDCREQUESTURI" | sed -E 's#(https://[^/]+/).*#\1...#'
 
-      echo "=== Phase 2: full auth round-trip ==="
-      cloudsmith whoami --verbose
-      cloudsmith list repos "$CLOUDSMITH_ORG"
+      echo "=== bare URI (no api-version) ==="
+      curl -s -o /tmp/bare.json -w "HTTP %{http_code}\n" -X POST \
+        -H "Content-Length: 0" -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+        "$SYSTEM_OIDCREQUESTURI"
+      echo "--- body (first 300 chars) ---"; head -c 300 /tmp/bare.json; echo
+
+      echo "=== with api-version=7.1 ==="
+      curl -s -o /tmp/v.json -w "HTTP %{http_code}\n" -X POST \
+        -H "Content-Length: 0" -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+        "$SYSTEM_OIDCREQUESTURI?api-version=7.1"
+      TOKEN=$(jq -r '.oidcToken // empty' /tmp/v.json)
+      echo "token retrieved: ${TOKEN:+yes}"
+
+      if [ -n "$TOKEN" ]; then
+        PAYLOAD=$(echo "$TOKEN" | cut -d. -f2 | tr '_-' '/+')
+        while [ $(( ${#PAYLOAD} % 4 )) -ne 0 ]; do PAYLOAD="${PAYLOAD}="; done
+        echo "=== TOKEN CLAIMS (iss / sub / aud) ==="
+        echo "$PAYLOAD" | base64 -d 2>/dev/null | jq '{iss, sub, aud, iat, exp}'
+      fi
