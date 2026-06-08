@@ -27,9 +27,11 @@ steps:
       pip install --quiet --upgrade pip
       pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/azure-devops"
 
-      echo "=== Phase 1: detection + OIDC token fetch (debug) ==="
-      cloudsmith whoami --debug
-
-      echo "=== Phase 2: full auth round-trip ==="
+      # NOTE: do not use --debug here. It enables HTTP wire logging which prints
+      # the X-Api-Key header (the exchanged Cloudsmith token) into the build log.
+      # This pipeline's logs are public, so --verbose only.
+      echo "=== whoami: OIDC auto-discovery ==="
       cloudsmith whoami --verbose
+
+      echo "=== authenticated API call ==="
       cloudsmith list repos "$CLOUDSMITH_ORG"
