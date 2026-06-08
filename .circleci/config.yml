@@ -29,7 +29,8 @@ jobs:
             fi
       - run:
           name: Show OIDC token claims (iss / sub / aud only)
-          command: python3 -c "import base64,json,os; t=os.environ['CIRCLE_OIDC_TOKEN_V2']; p=t.split('.')[1]; p+='='*(-len(p)%4); c=json.loads(base64.urlsafe_b64decode(p)); print(chr(10).join(k+': '+str(c.get(k)) for k in ('iss','sub','aud','exp')))"
+          command: |
+            python3 -c "import base64,json,os; t=os.environ['CIRCLE_OIDC_TOKEN_V2']; p=t.split('.')[1]; p+='='*(-len(p)%4); c=json.loads(base64.urlsafe_b64decode(p)); print(chr(10).join(k+': '+str(c.get(k)) for k in ('iss','sub','aud','exp')))"
       - run:
           name: Install cloudsmith-cli from the feature branch
           command: pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/circleci"
