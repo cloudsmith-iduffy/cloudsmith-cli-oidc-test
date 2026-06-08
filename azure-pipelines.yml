@@ -4,50 +4,32 @@ trigger:
 pool:
   name: 'Default'
 
+variables:
+  CLOUDSMITH_ORG: iduffy-demo
+  CLOUDSMITH_SERVICE_SLUG: azure-devops-gqgp
+
 steps:
 - task: Bash@3
-  displayName: 'OIDC diagnostic: api-version + claims'
+  displayName: 'OIDC smoke test via cloudsmith-cli'
   env:
+    # System.AccessToken is not exposed to scripts by default; map it in.
+    # System.OidcRequestUri is mapped explicitly so the detector reads it from env.
     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+    CLOUDSMITH_ORG: $(CLOUDSMITH_ORG)
+    CLOUDSMITH_SERVICE_SLUG: $(CLOUDSMITH_SERVICE_SLUG)
   inputs:
     targetType: 'inline'
     script: |
-      set -uo pipefail
+      set -euo pipefail
+      python3 -m venv /tmp/venv
+      . /tmp/venv/bin/activate
+      pip install --quiet --upgrade pip
+      pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/azure-devops"
 
-      echo "=== request URI (host only) ==="
-      echo "$SYSTEM_OIDCREQUESTURI" | sed -E 's#(https://[^/]+/).*#\1...#'
+      echo "=== Phase 1: detection + OIDC token fetch (debug) ==="
+      cloudsmith whoami --debug
 
-      echo "=== bare URI (no api-version) ==="
-      curl -s -o /tmp/bare.json -w "HTTP %{http_code}\n" -X POST \
-        -H "Content-Length: 0" -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
-        "$SYSTEM_OIDCREQUESTURI"
-      echo "--- body (first 300 chars) ---"; head -c 300 /tmp/bare.json; echo
-
-      echo "=== with api-version=7.1 ==="
-      curl -s -o /tmp/v.json -w "HTTP %{http_code}\n" -X POST \
-        -H "Content-Length: 0" -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
-        "$SYSTEM_OIDCREQUESTURI?api-version=7.1"
-      decode_aud() {
-        local tok="$1"
-        local payload
-        payload=$(echo "$tok" | cut -d. -f2 | tr '_-' '/+')
-        while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="${payload}="; done
-        echo "$payload" | base64 -d 2>/dev/null | jq '{iss, sub, aud}'
-      }
-
-      TOKEN=$(jq -r '.oidcToken // empty' /tmp/v.json)
-      echo "token retrieved (no audience body): ${TOKEN:+yes}"
-      [ -n "$TOKEN" ] && { echo "--- claims (no audience body) ---"; decode_aud "$TOKEN"; }
-
-      echo "=== with api-version=7.1 + body {\"audience\":\"cloudsmith\"} ==="
-      curl -s -o /tmp/aud.json -w "HTTP %{http_code}\n" -X POST \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
-        -d '{"audience":"cloudsmith"}' \
-        "$SYSTEM_OIDCREQUESTURI?api-version=7.1"
-      TOKEN2=$(jq -r '.oidcToken // empty' /tmp/aud.json)
-      echo "token retrieved (audience=cloudsmith): ${TOKEN2:+yes}"
-      [ -n "$TOKEN2" ] && { echo "--- claims (audience=cloudsmith) ---"; decode_aud "$TOKEN2"; }
+      echo "=== Phase 2: full auth round-trip ==="
+      cloudsmith whoami --verbose
+      cloudsmith list repos "$CLOUDSMITH_ORG"
