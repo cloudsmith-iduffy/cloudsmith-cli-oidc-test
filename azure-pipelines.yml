@@ -30,12 +30,24 @@ steps:
         -H "Content-Length: 0" -H "Content-Type: application/json" \
         -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
         "$SYSTEM_OIDCREQUESTURI?api-version=7.1"
-      TOKEN=$(jq -r '.oidcToken // empty' /tmp/v.json)
-      echo "token retrieved: ${TOKEN:+yes}"
+      decode_aud() {
+        local tok="$1"
+        local payload
+        payload=$(echo "$tok" | cut -d. -f2 | tr '_-' '/+')
+        while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="${payload}="; done
+        echo "$payload" | base64 -d 2>/dev/null | jq '{iss, sub, aud}'
+      }
 
-      if [ -n "$TOKEN" ]; then
-        PAYLOAD=$(echo "$TOKEN" | cut -d. -f2 | tr '_-' '/+')
-        while [ $(( ${#PAYLOAD} % 4 )) -ne 0 ]; do PAYLOAD="${PAYLOAD}="; done
-        echo "=== TOKEN CLAIMS (iss / sub / aud) ==="
-        echo "$PAYLOAD" | base64 -d 2>/dev/null | jq '{iss, sub, aud, iat, exp}'
-      fi
+      TOKEN=$(jq -r '.oidcToken // empty' /tmp/v.json)
+      echo "token retrieved (no audience body): ${TOKEN:+yes}"
+      [ -n "$TOKEN" ] && { echo "--- claims (no audience body) ---"; decode_aud "$TOKEN"; }
+
+      echo "=== with api-version=7.1 + body {\"audience\":\"cloudsmith\"} ==="
+      curl -s -o /tmp/aud.json -w "HTTP %{http_code}\n" -X POST \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+        -d '{"audience":"cloudsmith"}' \
+        "$SYSTEM_OIDCREQUESTURI?api-version=7.1"
+      TOKEN2=$(jq -r '.oidcToken // empty' /tmp/aud.json)
+      echo "token retrieved (audience=cloudsmith): ${TOKEN2:+yes}"
+      [ -n "$TOKEN2" ] && { echo "--- claims (audience=cloudsmith) ---"; decode_aud "$TOKEN2"; }
