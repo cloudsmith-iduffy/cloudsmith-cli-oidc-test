@@ -1,0 +1,36 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  CLOUDSMITH_ORG: iduffy-demo
+  CLOUDSMITH_SERVICE_SLUG: default-v9ty
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.12'
+
+- task: Bash@3
+  displayName: 'OIDC smoke test via cloudsmith-cli'
+  env:
+    # System.AccessToken is not exposed to scripts by default; map it in.
+    # System.OidcRequestUri is mapped explicitly so the detector reads it from env.
+    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+    CLOUDSMITH_ORG: $(CLOUDSMITH_ORG)
+    CLOUDSMITH_SERVICE_SLUG: $(CLOUDSMITH_SERVICE_SLUG)
+  inputs:
+    targetType: 'inline'
+    script: |
+      set -euo pipefail
+      pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/azure-devops"
+
+      echo "=== Phase 1: detection + OIDC token fetch (debug) ==="
+      cloudsmith whoami --debug
+
+      echo "=== Phase 2: full auth round-trip ==="
+      cloudsmith whoami --verbose
+      cloudsmith list repos "$CLOUDSMITH_ORG"
