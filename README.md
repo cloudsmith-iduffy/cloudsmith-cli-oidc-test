@@ -20,13 +20,17 @@ Prerequisite: the `github-09kg` service in `iduffy-demo` trusts GitHub's issuer
 
 [`azure-pipelines.yml`](azure-pipelines.yml) installs the CLI from
 [`iduffy/azure-devops`](https://github.com/cloudsmith-io/cloudsmith-cli/tree/iduffy/azure-devops)
-and exercises OIDC auto-discovery against org `iduffy-demo` / service slug `default-v9ty`.
+and exercises OIDC auto-discovery against org `iduffy-demo` / service slug `azure-devops-gqgp`.
 Run it from the `cloudsmith-oidc-test` Azure DevOps project (this repo must be connected
-as the pipeline source). The pipeline maps `System.AccessToken` and `System.OidcRequestUri`
-into the step environment so the detector can read them.
+as the pipeline source). The pipeline runs on the self-hosted `Default` pool and maps
+`System.AccessToken` and `System.OidcRequestUri` into the step environment so the detector
+can read them.
 
-Success: Phase 1 logs `Detected OIDC environment: Azure DevOps` with no
-"Failed to retrieve identity token"; Phase 2 reports `Source: OIDC via Azure DevOps`.
+Success: Phase 1 authenticates as `User: azure-devops (slug: azure-devops-gqgp)`; Phase 2
+reports `Source: OIDC ... azure-devops-gqgp` and `list repos` returns repositories.
 
-Prerequisite: the `default-v9ty` service in `iduffy-demo` trusts the Azure DevOps issuer
-for the `cloudsmith-oidc-test` project with audience `cloudsmith`.
+Prerequisite — the `azure-devops-gqgp` service in `iduffy-demo` must trust:
+
+- **Issuer:** `https://vstoken.dev.azure.com/<accountId>`
+- **Audience:** `api://AzureADTokenExchange` (Azure DevOps ignores any requested audience)
+- **Subject:** `p://<org>/<project>/<pipeline>`, e.g. `p://iduffy-demo/cloudsmith-oidc-test/cloudsmith-cli-oidc-test`
