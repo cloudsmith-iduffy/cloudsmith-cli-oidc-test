@@ -1,0 +1,22 @@
+# Self-hosted Azure DevOps agent for the `Default` pool.
+#
+# This account has no hosted parallelism, so pipeline jobs must run on a
+# self-hosted agent. Bring one up locally with:
+#
+#   cp .env.example .env      # then put your PAT in .env (never commit it)
+#   docker compose up -d --build
+#
+# Tear it down (deregisters the agent) with:
+#
+#   docker compose down
+#
+# The PAT is read from the environment / .env — it is never stored in this file.
+services:
+  azp-agent:
+    build: ./azp-agent
+    environment:
+      AZP_URL: ${AZP_URL:-https://dev.azure.com/iduffy-demo}
+      AZP_TOKEN: ${AZP_TOKEN:?set AZP_TOKEN in .env — an Azure DevOps PAT with "Agent Pools (Read & manage)"}
+      AZP_POOL: ${AZP_POOL:-Default}
+      AZP_AGENT_NAME: ${AZP_AGENT_NAME:-compose-local-agent}
+    restart: unless-stopped

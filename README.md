@@ -34,3 +34,21 @@ Prerequisite — the `azure-devops-gqgp` service in `iduffy-demo` must trust:
 - **Issuer:** `https://vstoken.dev.azure.com/<accountId>`
 - **Audience:** `api://AzureADTokenExchange` (Azure DevOps ignores any requested audience)
 - **Subject:** `p://<org>/<project>/<pipeline>`, e.g. `p://iduffy-demo/cloudsmith-oidc-test/cloudsmith-cli-oidc-test`
+
+### Self-hosted agent (required for Azure DevOps)
+
+This account has no hosted parallelism, so the pipeline runs on the self-hosted
+`Default` pool. Bring an agent up locally with Docker Compose
+([`docker-compose.yml`](docker-compose.yml), agent image in [`azp-agent/`](azp-agent)):
+
+```bash
+cp .env.example .env          # put an Azure DevOps PAT (Agent Pools: Read & manage) in .env
+docker compose up -d --build  # registers a `compose-local-agent` in the Default pool
+# ... run the pipeline ...
+docker compose down           # deregisters and removes the agent
+```
+
+The PAT is read from `.env` (gitignored) — it is never stored in the compose file.
+A new pipeline also needs one-time authorization to use the `Default` pool (the
+"This pipeline needs permission to access a resource" prompt, or via the REST API
+`pipelinePermissions/queue/<queueId>`).
