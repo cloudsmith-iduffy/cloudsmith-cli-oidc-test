@@ -1,0 +1,38 @@
+# Bitbucket Pipelines OIDC smoke test for cloudsmith-cli.
+#
+# The step sets `oidc: true`, so Bitbucket injects an OIDC JWT into
+# BITBUCKET_STEP_OIDC_TOKEN, which the cloudsmith-cli detector reads.
+#
+# Uses the full `python` image (not -slim) because it bundles git, which pip
+# needs to install the CLI from a feature branch.
+image: python:3.12
+
+pipelines:
+  default:
+    - step:
+        name: OIDC smoke test via cloudsmith-cli
+        oidc: true
+        script:
+          # Print only the non-secret identity claims (iss/aud/sub) so we can
+          # configure the matching Cloudsmith OIDC provider. The raw signed JWT
+          # is the credential and is never printed (these logs are public).
+          - |
+            python3 - <<'PY'
+            import base64, json, os
+            payload = os.environ["BITBUCKET_STEP_OIDC_TOKEN"].split(".")[1]
+            payload += "=" * (-len(payload) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload))
+            print("=== OIDC token identity claims ===")
+            for key in ("iss", "aud", "sub"):
+                print(f"{key} = {claims.get(key)}")
+            PY
+          - pip install --quiet --upgrade pip
+          - pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@worktree-bitbucket-oidc"
+          - export CLOUDSMITH_ORG=iduffy-demo
+          - export CLOUDSMITH_SERVICE_SLUG=bitbucket-y3j7
+          # NOTE: --verbose only, never --debug: --debug logs the X-Api-Key
+          # header (the exchanged Cloudsmith token) and these logs are public.
+          - echo "=== whoami: OIDC auto-discovery ==="
+          - cloudsmith whoami --verbose
+          - echo "=== authenticated API call ==="
+          - cloudsmith list repos "$CLOUDSMITH_ORG"
