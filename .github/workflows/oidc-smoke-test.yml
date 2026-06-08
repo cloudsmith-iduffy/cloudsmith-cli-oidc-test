@@ -1,0 +1,32 @@
+name: oidc-smoke-test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write          # REQUIRED: without this the GitHub Actions OIDC detector skips
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDSMITH_ORG: iduffy-demo
+      CLOUDSMITH_SERVICE_SLUG: github-09kg
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cloudsmith-cli from the feature branch
+        run: pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/github-actions"
+
+      - name: Phase 1 - detection + OIDC token fetch (debug)
+        run: cloudsmith whoami --debug
+
+      - name: Phase 2 - full auth round-trip
+        run: |
+          cloudsmith whoami --verbose
+          cloudsmith list repos "$CLOUDSMITH_ORG"
