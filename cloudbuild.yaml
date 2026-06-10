@@ -60,7 +60,7 @@ steps:
         cloudsmith whoami --verbose
 
         echo "=== authenticated API call ==="
-        cloudsmith list repos "$CLOUDSMITH_ORG"
+        cloudsmith list repos "$$CLOUDSMITH_ORG"
 
 options:
   logging: CLOUD_LOGGING_ONLY
