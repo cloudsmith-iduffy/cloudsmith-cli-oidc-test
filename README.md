@@ -16,6 +16,28 @@ no "Failed to retrieve identity token"; Phase 2 (`whoami --verbose`) reports
 Prerequisite: the `github-09kg` service in `iduffy-demo` trusts GitHub's issuer
 (`https://token.actions.githubusercontent.com`) with audience `cloudsmith`.
 
+## Google Cloud Build
+
+[`cloudbuild.yaml`](cloudbuild.yaml) installs the CLI (with the `[gcp]` extra) from
+[`iduffy/gcp-oidc`](https://github.com/cloudsmith-io/cloudsmith-cli/tree/iduffy/gcp-oidc)
+and exercises OIDC auto-discovery against org `iduffy-demo` / service slug `google-10rf`.
+Run it with `gcloud builds submit --config cloudbuild.yaml --no-source`. On Cloud Build the
+detector resolves the ambient identity from the metadata server and mints a Google ID token
+(`iss: https://accounts.google.com`, `aud: cloudsmith`).
+
+The first step prints the decoded `iss`/`sub`/`aud`/`email` claims (never the raw JWT) so the
+runtime service account's `sub` can be bound in Cloudsmith.
+
+Success: Phase 1 prints the OIDC claims; Phase 2 (`whoami --verbose`) reports
+`Source: OIDC via Google Cloud` and `list repos` succeeds.
+
+Prerequisite — the `google-10rf` service in `iduffy-demo` must trust:
+
+- **Issuer:** `https://accounts.google.com`
+- **Audience:** `cloudsmith`
+- **Subject:** the Cloud Build runtime service account's numeric unique id (the `sub`
+  printed by the first build step)
+
 ## Azure DevOps
 
 [`azure-pipelines.yml`](azure-pipelines.yml) installs the CLI from
