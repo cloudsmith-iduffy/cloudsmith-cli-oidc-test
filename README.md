@@ -31,12 +31,16 @@ runtime service account's `sub` can be bound in Cloudsmith.
 Success: Phase 1 prints the OIDC claims; Phase 2 (`whoami --verbose`) reports
 `Source: OIDC via Google Cloud` and `list repos` succeeds.
 
-Prerequisite — the `google-10rf` service in `iduffy-demo` must trust:
+Prerequisites:
 
-- **Issuer:** `https://accounts.google.com`
-- **Audience:** `cloudsmith`
-- **Subject:** the Cloud Build runtime service account's numeric unique id (the `sub`
-  printed by the first build step)
+- The build's runtime service account needs `roles/iam.serviceAccountTokenCreator`
+  **on itself** — Cloud Build's metadata server has no ID-token endpoint, so the CLI
+  mints the token via the IAM Credentials API (`generateIdToken`) instead.
+- The `google-10rf` service in `iduffy-demo` must trust:
+  - **Issuer:** `https://accounts.google.com`
+  - **Audience:** `cloudsmith`
+  - **Subject:** the Cloud Build runtime service account's numeric unique id (the `sub`
+    printed by the first build step)
 
 ## Azure DevOps
 
