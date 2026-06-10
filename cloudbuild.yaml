@@ -29,35 +29,50 @@ steps:
       - |
         import base64, json, urllib.request, urllib.error
 
-        base = "http://metadata.google.internal/computeMetadata/v1/"
-        headers = {"Metadata-Flavor": "Google"}
+        meta = "http://metadata.google.internal/computeMetadata/v1/"
+        meta_headers = {"Metadata-Flavor": "Google"}
 
-        def fetch(path):
-            request = urllib.request.Request(base + path, headers=headers)
-            try:
-                body = urllib.request.urlopen(request, timeout=10).read().decode()
-                return 200, body
-            except urllib.error.HTTPError as exc:
-                return exc.code, ""
-
-        code, email = fetch("instance/service-accounts/default/email")
-        print(f"metadata SA email: [{code}] {email}")
-
-        identity = "instance/service-accounts/default/identity?audience=cloudsmith"
-        for label, path in (
-            ("identity (no format)", identity),
-            ("identity format=standard", identity + "&format=standard"),
-            ("identity format=full", identity + "&format=full"),
-        ):
-            code, token = fetch(path)
-            if code != 200:
-                print(f"{label}: HTTP {code}")
-                continue
+        def decode_claims(token):
             payload = token.split(".")[1]
             payload += "=" * (-len(payload) % 4)
             claims = json.loads(base64.urlsafe_b64decode(payload))
-            shown = {k: claims.get(k) for k in ("iss", "aud", "sub", "email")}
-            print(f"{label}: HTTP 200 claims={shown} all_keys={sorted(claims)}")
+            return {k: claims.get(k) for k in ("iss", "aud", "sub", "email", "exp")}
+
+        request = urllib.request.Request(
+            meta + "instance/service-accounts/default/email", headers=meta_headers
+        )
+        email = urllib.request.urlopen(request, timeout=10).read().decode()
+        print(f"metadata SA email: {email}")
+
+        request = urllib.request.Request(
+            meta + "instance/service-accounts/default/token", headers=meta_headers
+        )
+        access_token = json.loads(
+            urllib.request.urlopen(request, timeout=10).read().decode()
+        )["access_token"]
+
+        url = (
+            "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/"
+            f"{email}:generateIdToken"
+        )
+        body = json.dumps({"audience": "cloudsmith", "includeEmail": True}).encode()
+        request = urllib.request.Request(
+            url,
+            data=body,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+        )
+        try:
+            id_token = json.loads(
+                urllib.request.urlopen(request, timeout=10).read().decode()
+            )["token"]
+        except urllib.error.HTTPError as exc:
+            print(f"generateIdToken: HTTP {exc.code}: {exc.read().decode()[:300]}")
+            raise
+
+        print(f"generateIdToken claims: {decode_claims(id_token)}")
 
   - id: oidc-roundtrip
     name: python:3.12
