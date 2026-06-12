@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.cloudsmith.example</groupId>
+  <artifactId>cloudsmith-maven-oidc-demo</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <!--
+    No <repositories> block: dependency resolution flows through the active
+    profile that `cloudsmith credential-helper exec maven` injects via a
+    temporary settings.xml (download CDN). That is the "seamless" bit.
+  -->
+  <dependencies>
+    <dependency>
+      <groupId>io.cloudsmith.maven.example</groupId>
+      <artifactId>cloudsmith-maven-cli</artifactId>
+      <version>1.0.1090591</version>
+    </dependency>
+  </dependencies>
+
+  <!--
+    Native upload target. The <id> must match the <server> id injected by the
+    credential helper (default: "cloudsmith"). Upload uses the native Maven
+    endpoint, not the download CDN.
+  -->
+  <distributionManagement>
+    <repository>
+      <id>cloudsmith</id>
+      <url>https://maven.cloudsmith.io/iduffy-demo/default/</url>
+    </repository>
+    <snapshotRepository>
+      <id>cloudsmith</id>
+      <url>https://maven.cloudsmith.io/iduffy-demo/default/</url>
+    </snapshotRepository>
+  </distributionManagement>
+</project>

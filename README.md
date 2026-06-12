@@ -2,6 +2,25 @@
 
 Throwaway repo to validate the cloudsmith-cli OIDC detectors before merge/release.
 
+## GitHub Actions — Maven shell-plugin (download + native upload)
+
+[`.github/workflows/maven-oidc.yml`](.github/workflows/maven-oidc.yml) installs the CLI from
+[`iduffy/credential-helper-maven`](https://github.com/cloudsmith-io/cloudsmith-cli/tree/iduffy/credential-helper-maven)
+and proves the Maven shell-plugin credential helper end-to-end with **GitHub OIDC only** (no
+API key anywhere). Against org `iduffy-demo` / repo `default` / service slug `github-c3xe`, it:
+
+1. `cloudsmith credential-helper install maven --org iduffy-demo --repo default` and puts the
+   shim dir on `PATH` (the CI equivalent of `eval "$(cloudsmith credential-helper shell-init)"`),
+2. runs a plain `mvn clean deploy` in [`maven-example/`](maven-example) — the shadowed `mvn`
+   transparently **downloads** `io.cloudsmith.maven.example:cloudsmith-maven-cli:1.0.1090591`
+   from the download CDN and **uploads** the freshly built jar to the native Maven endpoint
+   (`https://maven.cloudsmith.io/iduffy-demo/default/`), authenticated via an ephemeral
+   settings.xml minted from the OIDC token.
+
+Prerequisite: the `github-c3xe` service in `iduffy-demo` trusts GitHub's issuer
+(`https://token.actions.githubusercontent.com`) with audience `cloudsmith`, and can read/write
+the `default` repo.
+
 ## GitHub Actions
 
 [`.github/workflows/oidc-smoke-test.yml`](.github/workflows/oidc-smoke-test.yml) installs
