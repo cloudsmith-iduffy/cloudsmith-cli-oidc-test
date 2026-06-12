@@ -4,9 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - 'maven-example/**'
-      - '.github/workflows/maven-oidc.yml'
 
 permissions:
   contents: read
