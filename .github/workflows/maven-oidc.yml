@@ -39,8 +39,11 @@ jobs:
 
       - name: Configure the Maven shell plugin
         run: |
+          # Discovery on (the default) — exactly what a customer runs; it picks up
+          # any custom download-CDN / Maven domain, falling back to the *.cloudsmith.io
+          # defaults when there are none.
           cloudsmith credential-helper install maven \
-            --org "$CLOUDSMITH_ORG" --repo "$CLOUDSMITH_REPO" --no-discover
+            --org "$CLOUDSMITH_ORG" --repo "$CLOUDSMITH_REPO"
           # Put the shims dir ahead of the real mvn for every subsequent step.
           # (Interactively this is: eval "$(cloudsmith credential-helper shell-init)")
           echo "$HOME/.cloudsmith/shims" >> "$GITHUB_PATH"
