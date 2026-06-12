@@ -26,6 +26,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: maven
       - working-directory: maven-example
         run: |
           pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/credential-helper-maven"
