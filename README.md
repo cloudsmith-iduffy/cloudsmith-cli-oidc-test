@@ -5,7 +5,7 @@ Throwaway repo to validate the cloudsmith-cli OIDC detectors before merge/releas
 ## GitHub Actions — Maven shell-plugin (download + native upload)
 
 [`.github/workflows/maven-oidc.yml`](.github/workflows/maven-oidc.yml) installs the CLI from
-[`iduffy/credential-helper-maven`](https://github.com/cloudsmith-io/cloudsmith-cli/tree/iduffy/credential-helper-maven)
+[`maven-shell-plugin`](https://github.com/cloudsmith-io/cloudsmith-cli/tree/maven-shell-plugin)
 and proves the Maven shell-plugin credential helper end-to-end with **GitHub OIDC only** (no
 API key anywhere). Against org `iduffy-demo` / repo `default` / service slug `github-c3xe`, it:
 
