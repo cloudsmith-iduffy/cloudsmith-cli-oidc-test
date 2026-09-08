@@ -55,8 +55,14 @@ steps:
         echo "FAIL: cloudsmith whoami failed"
         exit "$${status}"
       fi
-      if ! printf '%s\n' "$${output}" | grep -Fq 'Source: OIDC via Buildkite'; then
-        echo "FAIL: cloudsmith whoami did not authenticate through Buildkite OIDC"
+      if ! printf '%s\n' "$${output}" \
+        | grep -Fq 'Detected OIDC environment: Buildkite'; then
+        echo "FAIL: cloudsmith did not detect the Buildkite OIDC environment"
+        exit 1
+      fi
+      if ! printf '%s\n' "$${output}" \
+        | grep -Fq "slug: $${CLOUDSMITH_SERVICE_SLUG}"; then
+        echo "FAIL: cloudsmith whoami did not authenticate as the expected service"
         exit 1
       fi
 

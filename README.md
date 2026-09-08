@@ -18,7 +18,7 @@ Configure these values in the Buildkite pipeline environment; do not commit thei
 `CLOUDSMITH_API_KEY` must not be configured. The test runs the standalone binary's version
 command followed by `cloudsmith --debug whoami --verbose`, captures the debug output to avoid
 printing credentials, isolates the CLI from persisted local credentials, and passes only when
-the reported source is `OIDC via Buildkite`.
+the Buildkite detector activates and `whoami` returns the configured service slug.
 
 The Cloudsmith service must trust issuer `https://agent.buildkite.com`, audience
 `cloudsmith`, and the stable Buildkite claims `organization_slug=ian-duffy` and
