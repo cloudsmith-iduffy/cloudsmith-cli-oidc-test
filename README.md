@@ -2,6 +2,50 @@
 
 Throwaway repo to validate the cloudsmith-cli OIDC detectors before merge/release.
 
+## Buildkite
+
+[`.buildkite/pipeline.yml`](.buildkite/pipeline.yml) exercises automatic Buildkite OIDC
+detection using the public Linux x86_64 GNU standalone CLI built from
+`cloudsmith-io/cloudsmith-cli@ff2c7ceabcb6126643fc6c0e1b92b620eee0be1b`. The pipeline
+downloads version `1.26.0-dev.13.gff2c7ce` and verifies its pinned SHA256 before extracting
+or running it.
+
+Configure these values in the Buildkite pipeline environment; do not commit their values:
+
+- `CLOUDSMITH_WORKSPACE`
+- `CLOUDSMITH_SERVICE_SLUG`
+
+`CLOUDSMITH_API_KEY` must not be configured. The test runs the standalone binary's version
+command followed by `cloudsmith --debug whoami --verbose`, captures the debug output to avoid
+printing credentials, isolates the CLI from persisted local credentials, and passes only when
+the reported source is `OIDC via Buildkite`.
+
+The Cloudsmith service must trust issuer `https://agent.buildkite.com`, audience
+`cloudsmith`, and the stable Buildkite claims `organization_slug=ian-duffy` and
+`pipeline_slug=cloudsmith-oidc-test`.
+
+If the Buildkite pipeline is not already repository-backed, set its uploaded steps to:
+
+```yaml
+steps:
+  - label: ":pipeline: Pipeline upload"
+    command: buildkite-agent pipeline upload
+```
+
+Trigger a build with Buildkite's
+[`Create a build`](https://buildkite.com/docs/apis/rest-api/builds#create-a-build) API:
+
+```bash
+curl --fail-with-body --request POST \
+  --header "Authorization: Bearer $BUILDKITE_API_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data "{\"commit\":\"$GIT_COMMIT\",\"branch\":\"$GIT_BRANCH\",\"message\":\"Buildkite OIDC smoke test\"}" \
+  https://api.buildkite.com/v2/organizations/ian-duffy/pipelines/cloudsmith-oidc-test/builds
+```
+
+Success is `PASS: Cloudsmith authenticated through Buildkite OIDC`; a missing Buildkite
+token, rejected OIDC exchange, anonymous response, or fallback authentication fails the job.
+
 ## GitHub Actions — Maven shell-plugin (download + native upload)
 
 [`.github/workflows/maven-oidc.yml`](.github/workflows/maven-oidc.yml) installs the CLI from

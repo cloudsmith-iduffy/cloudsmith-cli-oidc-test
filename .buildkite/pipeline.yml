@@ -1,0 +1,63 @@
+steps:
+  - label: ":closed_lock_with_key: Cloudsmith OIDC smoke test"
+    key: cloudsmith-oidc-smoke-test
+    command: |
+      set -euo pipefail
+
+      : "$${CLOUDSMITH_WORKSPACE:?Set CLOUDSMITH_WORKSPACE in the Buildkite environment}"
+      : "$${CLOUDSMITH_SERVICE_SLUG:?Set CLOUDSMITH_SERVICE_SLUG in the Buildkite environment}"
+
+      if [ -n "$${CLOUDSMITH_API_KEY:-}" ]; then
+        echo "FAIL: CLOUDSMITH_API_KEY must not be configured for this OIDC test"
+        exit 1
+      fi
+      unset CLOUDSMITH_API_KEY
+
+      archive="cloudsmith-1.26.0-linux-x86_64-gnu.tar.gz"
+      url="https://dl.cloudsmith.io/public/cloudsmith/cli-dev/raw/names/cloudsmith-cli-linux-x86_64-gnu/versions/1.26.0-dev.13.gff2c7ce/$${archive}"
+      expected_sha256="a61382ab6ca8c2c6a5bf8e67c6864a145966a57a2b26eb9340c83250730c7658"
+
+      curl --fail --silent --show-error --location "$${url}" --output "$${archive}"
+      printf '%s  %s\n' "$${expected_sha256}" "$${archive}" | sha256sum --check -
+
+      tar -tzf "$${archive}" > archive-entries.txt
+      test -s archive-entries.txt
+      if grep -Eq '(^|/)\.\.(/|$)|^/' archive-entries.txt; then
+        echo "FAIL: archive contains an unsafe path"
+        exit 1
+      fi
+      if grep -Ev '^cloudsmith(/|$)' archive-entries.txt; then
+        echo "FAIL: archive contains files outside cloudsmith/"
+        exit 1
+      fi
+      grep -qx 'cloudsmith/cloudsmith' archive-entries.txt
+      tar -xzf "$${archive}"
+
+      cli="$${PWD}/cloudsmith/cloudsmith"
+      "$${cli}" --version
+
+      smoke_home="$${PWD}/.cloudsmith-oidc-smoke-home"
+      rm -rf "$${smoke_home}"
+      mkdir -p "$${smoke_home}"
+
+      set +e
+      output=$(HOME="$${smoke_home}" CLOUDSMITH_NO_KEYRING=1 \
+        "$${cli}" --debug whoami --verbose 2>&1)
+      status=$?
+      set -e
+
+      # Only print identity and OIDC status lines; debug output can contain credentials.
+      printf '%s\n' "$${output}" \
+        | grep -E 'Detected OIDC environment|OIDC:|Authentication Method:|Source: OIDC|User:' \
+        || true
+
+      if [ "$${status}" -ne 0 ]; then
+        echo "FAIL: cloudsmith whoami failed"
+        exit "$${status}"
+      fi
+      if ! printf '%s\n' "$${output}" | grep -Fq 'Source: OIDC via Buildkite'; then
+        echo "FAIL: cloudsmith whoami did not authenticate through Buildkite OIDC"
+        exit 1
+      fi
+
+      echo "PASS: Cloudsmith authenticated through Buildkite OIDC"
