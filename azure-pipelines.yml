@@ -39,15 +39,25 @@ steps:
     set -uo pipefail
     failures=0
 
+    run_whoami() {
+      local stdin="$1"
+      shift
+      if [ "$stdin" = inherit ]; then
+        "$@" whoami 2>&1
+      else
+        "$@" whoami 2>&1 < "$stdin"
+      fi
+    }
+
     run_case() {
       local name="$1" cli="$2" expect_warning="$3" expect_store="$4" stdin="$5"
       shift 5
       local home output warnings attempt status
       home="$(mktemp -d)"
       for attempt in 1 2; do
-        output="$(env -u CI -u CLOUDSMITH_API_KEY HOME="$home" XDG_DATA_HOME="$home/data" \
-          CLOUDSMITH_ORG="$OIDC_ORG" CLOUDSMITH_SERVICE_SLUG="$OIDC_SERVICE_SLUG" "$@" \
-          timeout 120 "$cli" whoami 2>&1 < "$stdin")"
+        output="$(run_whoami "$stdin" env -u CI -u CLOUDSMITH_API_KEY HOME="$home" \
+          XDG_DATA_HOME="$home/data" CLOUDSMITH_ORG="$OIDC_ORG" \
+          CLOUDSMITH_SERVICE_SLUG="$OIDC_SERVICE_SLUG" "$@" timeout 120 "$cli")"
         status=$?
         echo "----- $name, run $attempt, exit $status -----"
         echo "$output"
@@ -83,8 +93,8 @@ steps:
     }
 
     run_case release "$(Agent.TempDirectory)/release/bin/cloudsmith" yes any /dev/null
-    run_case fix-no-key "$(Agent.TempDirectory)/fix/bin/cloudsmith" no disk /dev/stdin
-    run_case fix-with-key "$(Agent.TempDirectory)/fix/bin/cloudsmith" no keyring /dev/stdin \
+    run_case fix-no-key "$(Agent.TempDirectory)/fix/bin/cloudsmith" no disk inherit
+    run_case fix-with-key "$(Agent.TempDirectory)/fix/bin/cloudsmith" no keyring inherit \
       CLOUDSMITH_KEYRING_KEY=e2e-keyring-password
 
     echo "RESULT failures=$failures"
