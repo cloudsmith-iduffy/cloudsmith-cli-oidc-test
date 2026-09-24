@@ -17,7 +17,7 @@ pool:
 
 variables:
   CLI_REPOSITORY: https://github.com/cloudsmith-io/cloudsmith-cli.git
-  CLI_COMMIT: 05c02d2af0ab908b472d780b6fdaac8a9d292789
+  CLI_COMMIT: 3005c22c47182dcdc88d3d99a4163be09be03ee2
   OIDC_ORG: iduffy-demo
   OIDC_SERVICE_SLUG: azure-devops-0v19
 
