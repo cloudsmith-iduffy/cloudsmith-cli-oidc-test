@@ -18,7 +18,7 @@ variables:
   TASK_DIR: $(Agent.TempDirectory)/ado-integration/cloudsmith-task
   RESULTS_FILE: /azp/e2e-results/$(Build.BuildId).txt
   OIDC_ORG: iduffy-demo
-  OIDC_SERVICE_SLUG: azure-devops-gqgp
+  OIDC_SERVICE_SLUG: azure-devops-0v19
 
 steps:
 - task: UseNode@1
