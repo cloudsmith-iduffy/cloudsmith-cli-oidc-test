@@ -1,37 +1,106 @@
-trigger:
-- main
+# End-to-end test of cloudsmith-io/cloudsmith-cli PR #425: no keyring
+# password prompt in a run without a user.
+#
+# Each case runs "cloudsmith whoami" twice with OIDC, in a fresh HOME, on
+# the headless self-hosted agent. The agent has no Secret Service, so
+# keyring selects the encrypted file chain that prompts with getpass.
+# The fix cases unset CI, so they depend on the /dev/tty check. They also
+# keep the agent's stdin, a socket that never closes, so a getpass call
+# would hang. The timeout turns a hang into a failure. The release case
+# reads /dev/null, so its getpass call ends at once with a warning.
+trigger: none
+
+pr: none
 
 pool:
   name: 'Default'
 
 variables:
-  CLOUDSMITH_ORG: iduffy-demo
-  CLOUDSMITH_SERVICE_SLUG: azure-devops-gqgp
+  CLI_REPOSITORY: https://github.com/cloudsmith-io/cloudsmith-cli.git
+  CLI_COMMIT: 05c02d2af0ab908b472d780b6fdaac8a9d292789
+  OIDC_ORG: iduffy-demo
+  OIDC_SERVICE_SLUG: azure-devops-0v19
 
 steps:
-- task: Bash@3
-  displayName: 'OIDC smoke test via cloudsmith-cli'
+- script: |
+    set -euo pipefail
+    echo "CI=${CI:-<unset>} TF_BUILD=${TF_BUILD:-<unset>}"
+    python3 -m venv "$(Agent.TempDirectory)/release"
+    "$(Agent.TempDirectory)/release/bin/pip" install -q --upgrade pip
+    "$(Agent.TempDirectory)/release/bin/pip" install -q cloudsmith-cli
+    python3 -m venv "$(Agent.TempDirectory)/fix"
+    "$(Agent.TempDirectory)/fix/bin/pip" install -q --upgrade pip
+    "$(Agent.TempDirectory)/fix/bin/pip" install -q "git+$CLI_REPOSITORY@$CLI_COMMIT"
+    echo "release: $("$(Agent.TempDirectory)/release/bin/pip" show cloudsmith-cli | grep '^Version')"
+    echo "fix: $("$(Agent.TempDirectory)/fix/bin/pip" show cloudsmith-cli | grep '^Version')"
+  displayName: 'Install the released CLI and the fix'
+
+- script: |
+    set -uo pipefail
+    failures=0
+
+    run_whoami() {
+      local stdin="$1"
+      shift
+      if [ "$stdin" = inherit ]; then
+        "$@" whoami 2>&1
+      else
+        "$@" whoami 2>&1 < "$stdin"
+      fi
+    }
+
+    run_case() {
+      local name="$1" cli="$2" expect_warning="$3" expect_store="$4" stdin="$5"
+      shift 5
+      local home output warnings attempt status
+      home="$(mktemp -d)"
+      for attempt in 1 2; do
+        output="$(run_whoami "$stdin" env -u CI -u CLOUDSMITH_API_KEY HOME="$home" \
+          XDG_DATA_HOME="$home/data" CLOUDSMITH_ORG="$OIDC_ORG" \
+          CLOUDSMITH_SERVICE_SLUG="$OIDC_SERVICE_SLUG" "$@" timeout 120 "$cli")"
+        status=$?
+        echo "----- $name, run $attempt, exit $status -----"
+        echo "$output"
+        if [ "$status" -eq 124 ]; then
+          echo "RESULT FAIL $name run $attempt: whoami hung for 120s"; failures=$((failures + 1))
+        fi
+        warnings="$(grep -cE 'GetPassWarning|password for your new keyring|password for encrypted keyring' <<< "$output" || true)"
+        # Run 2 reads the token that run 1 cached, so only run 1 can prompt.
+        if [ "$expect_warning" = yes ] && [ "$attempt" = 1 ] && [ "$warnings" -eq 0 ]; then
+          echo "RESULT FAIL $name run $attempt: expected a password prompt, saw none"; failures=$((failures + 1))
+        elif [ "$expect_warning" = no ] && [ "$warnings" -ne 0 ]; then
+          echo "RESULT FAIL $name run $attempt: saw $warnings password prompt lines"; failures=$((failures + 1))
+        else
+          echo "RESULT PASS $name run $attempt: password prompt lines=$warnings"
+        fi
+        if [ "$expect_warning" = no ]; then
+          if grep -q '^User:' <<< "$output"; then
+            echo "RESULT PASS $name run $attempt: whoami authenticated"
+          else
+            echo "RESULT FAIL $name run $attempt: whoami did not authenticate"; failures=$((failures + 1))
+          fi
+        fi
+      done
+      local keyring_files disk_files
+      keyring_files="$(find "$home" -name '*_pass.cfg' | wc -l)"
+      disk_files="$(find "$home" -name 'oidc_*.json' | wc -l)"
+      echo "INFO $name: keyring files=$keyring_files disk cache files=$disk_files"
+      case "$expect_store" in
+        disk) [ "$keyring_files" -eq 0 ] && [ "$disk_files" -ge 1 ] ;;
+        keyring) [ "$keyring_files" -ge 1 ] && [ "$disk_files" -eq 0 ] ;;
+        any) true ;;
+      esac && echo "RESULT PASS $name: token stored in $expect_store" \
+        || { echo "RESULT FAIL $name: token not stored in $expect_store"; failures=$((failures + 1)); }
+    }
+
+    run_case release "$(Agent.TempDirectory)/release/bin/cloudsmith" yes any /dev/null
+    run_case fix-no-key "$(Agent.TempDirectory)/fix/bin/cloudsmith" no disk inherit
+    run_case fix-with-key "$(Agent.TempDirectory)/fix/bin/cloudsmith" no keyring inherit \
+      CLOUDSMITH_KEYRING_KEY=e2e-keyring-password
+
+    echo "RESULT failures=$failures"
+    exit "$failures"
+  displayName: 'Run the OIDC cases'
   env:
-    # System.AccessToken is not exposed to scripts by default; map it in.
-    # System.OidcRequestUri is mapped explicitly so the detector reads it from env.
     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
-    CLOUDSMITH_ORG: $(CLOUDSMITH_ORG)
-    CLOUDSMITH_SERVICE_SLUG: $(CLOUDSMITH_SERVICE_SLUG)
-  inputs:
-    targetType: 'inline'
-    script: |
-      set -euo pipefail
-      python3 -m venv /tmp/venv
-      . /tmp/venv/bin/activate
-      pip install --quiet --upgrade pip
-      pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/azure-devops"
-
-      # NOTE: do not use --debug here. It enables HTTP wire logging which prints
-      # the X-Api-Key header (the exchanged Cloudsmith token) into the build log.
-      # This pipeline's logs are public, so --verbose only.
-      echo "=== whoami: OIDC auto-discovery ==="
-      cloudsmith whoami --verbose
-
-      echo "=== authenticated API call ==="
-      cloudsmith list repos "$CLOUDSMITH_ORG"
