@@ -31,8 +31,8 @@ steps:
     python3 -m venv "$(Agent.TempDirectory)/fix"
     "$(Agent.TempDirectory)/fix/bin/pip" install -q --upgrade pip
     "$(Agent.TempDirectory)/fix/bin/pip" install -q "git+$CLI_REPOSITORY@$CLI_COMMIT"
-    echo "release: $("$(Agent.TempDirectory)/release/bin/cloudsmith" --version | head -n 1)"
-    echo "fix: $("$(Agent.TempDirectory)/fix/bin/cloudsmith" --version | head -n 1)"
+    echo "release: $("$(Agent.TempDirectory)/release/bin/pip" show cloudsmith-cli | grep '^Version')"
+    echo "fix: $("$(Agent.TempDirectory)/fix/bin/pip" show cloudsmith-cli | grep '^Version')"
   displayName: 'Install the released CLI and the fix'
 
 - script: |
@@ -65,7 +65,8 @@ steps:
           echo "RESULT FAIL $name run $attempt: whoami hung for 120s"; failures=$((failures + 1))
         fi
         warnings="$(grep -cE 'GetPassWarning|password for your new keyring|password for encrypted keyring' <<< "$output" || true)"
-        if [ "$expect_warning" = yes ] && [ "$warnings" -eq 0 ]; then
+        # Run 2 reads the token that run 1 cached, so only run 1 can prompt.
+        if [ "$expect_warning" = yes ] && [ "$attempt" = 1 ] && [ "$warnings" -eq 0 ]; then
           echo "RESULT FAIL $name run $attempt: expected a password prompt, saw none"; failures=$((failures + 1))
         elif [ "$expect_warning" = no ] && [ "$warnings" -ne 0 ]; then
           echo "RESULT FAIL $name run $attempt: saw $warnings password prompt lines"; failures=$((failures + 1))
