@@ -38,15 +38,16 @@ steps:
     echo "PASS fetch: task $(git rev-parse HEAD)" >> "$RESULTS_FILE"
   displayName: 'Fetch the task under test'
 
-- script: node "$TASK_DIR/main.js"
+- script: |
+    echo "INPUT_ names in the step env: $(compgen -e | grep '^INPUT_' | tr '\n' ' ')"
+    # The Command Line task removes INPUT_ variables from the script env,
+    # so set the inputs of the task under test here.
+    export INPUT_CLIVERSION=latest INPUT_AUTHMETHOD=oidc
+    export INPUT_OIDCNAMESPACE="$OIDC_ORG" INPUT_OIDCSERVICESLUG="$OIDC_SERVICE_SLUG"
+    export INPUT_EXPORTAUTHTOKEN=true INPUT_VERIFYAUTH=true
+    node "$TASK_DIR/main.js"
   displayName: 'Task run 1: OIDC with exportAuthToken and verifyAuth'
   env:
-    INPUT_CLIVERSION: latest
-    INPUT_AUTHMETHOD: oidc
-    INPUT_OIDCNAMESPACE: $(OIDC_ORG)
-    INPUT_OIDCSERVICESLUG: $(OIDC_SERVICE_SLUG)
-    INPUT_EXPORTAUTHTOKEN: true
-    INPUT_VERIFYAUTH: true
     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
 
@@ -77,16 +78,17 @@ steps:
   env:
     CLOUDSMITH_API_KEY: $(CLOUDSMITH_API_KEY)
 
-- script: node "$TASK_DIR/main.js"
+- script: |
+    echo "INPUT_ names in the step env: $(compgen -e | grep '^INPUT_' | tr '\n' ' ')"
+    # The Command Line task removes INPUT_ variables from the script env,
+    # so set the inputs of the task under test here.
+    export INPUT_CLIVERSION=latest INPUT_AUTHMETHOD=oidc
+    export INPUT_OIDCNAMESPACE="$OIDC_ORG" INPUT_OIDCSERVICESLUG="$OIDC_SERVICE_SLUG"
+    export INPUT_EXPORTAUTHTOKEN=true INPUT_VERIFYAUTH=true
+    node "$TASK_DIR/main.js"
   displayName: 'Task run 2: stale inherited key is ignored'
   env:
     CLOUDSMITH_API_KEY: stale-invalid-token
-    INPUT_CLIVERSION: latest
-    INPUT_AUTHMETHOD: oidc
-    INPUT_OIDCNAMESPACE: $(OIDC_ORG)
-    INPUT_OIDCSERVICESLUG: $(OIDC_SERVICE_SLUG)
-    INPUT_EXPORTAUTHTOKEN: true
-    INPUT_VERIFYAUTH: true
     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
 
