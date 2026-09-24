@@ -1,37 +1,104 @@
-trigger:
-- main
+# End-to-end test of the exportAuthToken input of
+# cloudsmith-io/cloudsmith-ado-integration (PR #17).
+#
+# The steps run the task's main.js directly. The agent processes its
+# ##vso logging commands exactly as it does for an installed task.
+# Each step appends a result line to /azp/e2e-results/<BuildId>.txt on the
+# agent container. The lines never contain the token.
+trigger: none
+
+pr: none
 
 pool:
   name: 'Default'
 
 variables:
-  CLOUDSMITH_ORG: iduffy-demo
-  CLOUDSMITH_SERVICE_SLUG: azure-devops-gqgp
+  TASK_REPOSITORY: https://github.com/cloudsmith-io/cloudsmith-ado-integration.git
+  TASK_COMMIT: ebfaab2e96a55b21f637674c4ee346ad9e93998f
+  TASK_DIR: $(Agent.TempDirectory)/ado-integration/cloudsmith-task
+  RESULTS_FILE: /azp/e2e-results/$(Build.BuildId).txt
+  OIDC_ORG: iduffy-demo
+  OIDC_SERVICE_SLUG: azure-devops-gqgp
 
 steps:
-- task: Bash@3
-  displayName: 'OIDC smoke test via cloudsmith-cli'
+- task: UseNode@1
+  displayName: 'Install Node.js 20'
+  inputs:
+    version: '20.x'
+
+- script: |
+    mkdir -p "$(dirname "$RESULTS_FILE")"
+    echo "build=$(Build.BuildId) task_commit=$TASK_COMMIT" > "$RESULTS_FILE"
+    git init -q "$(Agent.TempDirectory)/ado-integration"
+    cd "$(Agent.TempDirectory)/ado-integration"
+    git fetch -q --depth 1 "$TASK_REPOSITORY" "$TASK_COMMIT"
+    git checkout -q FETCH_HEAD
+    cd cloudsmith-task
+    npm ci --omit=dev --no-audit --no-fund
+    echo "PASS fetch: task $(git rev-parse HEAD)" >> "$RESULTS_FILE"
+  displayName: 'Fetch the task under test'
+
+- script: node "$TASK_DIR/main.js"
+  displayName: 'Task run 1: OIDC with exportAuthToken and verifyAuth'
   env:
-    # System.AccessToken is not exposed to scripts by default; map it in.
-    # System.OidcRequestUri is mapped explicitly so the detector reads it from env.
+    INPUT_CLIVERSION: latest
+    INPUT_AUTHMETHOD: oidc
+    INPUT_OIDCNAMESPACE: $(OIDC_ORG)
+    INPUT_OIDCSERVICESLUG: $(OIDC_SERVICE_SLUG)
+    INPUT_EXPORTAUTHTOKEN: true
+    INPUT_VERIFYAUTH: true
     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
-    CLOUDSMITH_ORG: $(CLOUDSMITH_ORG)
-    CLOUDSMITH_SERVICE_SLUG: $(CLOUDSMITH_SERVICE_SLUG)
-  inputs:
-    targetType: 'inline'
-    script: |
-      set -euo pipefail
-      python3 -m venv /tmp/venv
-      . /tmp/venv/bin/activate
-      pip install --quiet --upgrade pip
-      pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/azure-devops"
 
-      # NOTE: do not use --debug here. It enables HTTP wire logging which prints
-      # the X-Api-Key header (the exchanged Cloudsmith token) into the build log.
-      # This pipeline's logs are public, so --verbose only.
-      echo "=== whoami: OIDC auto-discovery ==="
-      cloudsmith whoami --verbose
+- script: |
+    test -z "${CLOUDSMITH_API_KEY:-}"
+    echo "PASS secret: CLOUDSMITH_API_KEY is not in an unmapped step env" >> "$RESULTS_FILE"
+    test "$CLOUDSMITH_USERNAME" = token
+    echo "PASS username: CLOUDSMITH_USERNAME=$CLOUDSMITH_USERNAME" >> "$RESULTS_FILE"
+    echo "INFO cli: $(cloudsmith --version 2>&1 | head -n 1 || true)" >> "$RESULTS_FILE"
+  displayName: 'Check the exported variables'
 
-      echo "=== authenticated API call ==="
-      cloudsmith list repos "$CLOUDSMITH_ORG"
+- script: |
+    self="$(curl -fsS --max-time 30 -H "X-Api-Key: $CLOUDSMITH_API_KEY" https://api.cloudsmith.io/v1/user/self/)"
+    test "$(jq -r .authenticated <<< "$self")" = true
+    echo "PASS curl: authenticated as $(jq -r .slug <<< "$self")" >> "$RESULTS_FILE"
+    status="$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -H "X-Api-Key: $CLOUDSMITH_API_KEY" "https://api.cloudsmith.io/v1/repos/$OIDC_ORG/")"
+    test "$status" = 200
+    echo "PASS curl: list repos in $OIDC_ORG returned $status" >> "$RESULTS_FILE"
+    whoami="$(env -u SYSTEM_ACCESSTOKEN -u SYSTEM_OIDCREQUESTURI -u CLOUDSMITH_ORG -u CLOUDSMITH_SERVICE_SLUG \
+      cloudsmith whoami 2>&1)"
+    echo "$whoami"
+    # Some CLI builds exit 0 on a 401, so check the output as well.
+    if grep -qF 'Failed to retrieve your authentication status' <<< "$whoami"; then
+      exit 1
+    fi
+    echo "PASS cli: whoami with the exported key only" >> "$RESULTS_FILE"
+  displayName: 'Use the exported token without OIDC'
+  env:
+    CLOUDSMITH_API_KEY: $(CLOUDSMITH_API_KEY)
+
+- script: node "$TASK_DIR/main.js"
+  displayName: 'Task run 2: stale inherited key is ignored'
+  env:
+    CLOUDSMITH_API_KEY: stale-invalid-token
+    INPUT_CLIVERSION: latest
+    INPUT_AUTHMETHOD: oidc
+    INPUT_OIDCNAMESPACE: $(OIDC_ORG)
+    INPUT_OIDCSERVICESLUG: $(OIDC_SERVICE_SLUG)
+    INPUT_EXPORTAUTHTOKEN: true
+    INPUT_VERIFYAUTH: true
+    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+
+- script: |
+    test "$CLOUDSMITH_API_KEY" != stale-invalid-token
+    self="$(curl -fsS --max-time 30 -H "X-Api-Key: $CLOUDSMITH_API_KEY" https://api.cloudsmith.io/v1/user/self/)"
+    test "$(jq -r .authenticated <<< "$self")" = true
+    echo "PASS rerun: second export authenticated as $(jq -r .slug <<< "$self")" >> "$RESULTS_FILE"
+  displayName: 'Check the token from run 2'
+  env:
+    CLOUDSMITH_API_KEY: $(CLOUDSMITH_API_KEY)
+
+- script: echo "RESULT $(Agent.JobStatus)" >> "$RESULTS_FILE"
+  displayName: 'Record the job status'
+  condition: always()
