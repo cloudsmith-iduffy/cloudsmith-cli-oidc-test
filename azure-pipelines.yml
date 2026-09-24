@@ -1,10 +1,10 @@
-# End-to-end test of the exportAuthToken input of
-# cloudsmith-io/cloudsmith-ado-integration (PR #17).
+# End-to-end test of cloudsmith-io/cloudsmith-cli PR #425: no keyring
+# password prompt in a run without a user.
 #
-# The steps run the task's main.js directly. The agent processes its
-# ##vso logging commands exactly as it does for an installed task.
-# Each step appends a result line to /azp/e2e-results/<BuildId>.txt on the
-# agent container. The lines never contain the token.
+# Each case runs "cloudsmith whoami" twice with OIDC, in a fresh HOME, on
+# the headless self-hosted agent. The agent has no Secret Service, so
+# keyring selects the encrypted file chain that prompts with getpass.
+# The fix cases unset CI, so they depend on the /dev/tty check.
 trigger: none
 
 pr: none
@@ -13,94 +13,76 @@ pool:
   name: 'Default'
 
 variables:
-  TASK_REPOSITORY: https://github.com/cloudsmith-io/cloudsmith-ado-integration.git
-  TASK_COMMIT: ebfaab2e96a55b21f637674c4ee346ad9e93998f
-  TASK_DIR: $(Agent.TempDirectory)/ado-integration/cloudsmith-task
-  RESULTS_FILE: /azp/e2e-results/$(Build.BuildId).txt
+  CLI_REPOSITORY: https://github.com/cloudsmith-io/cloudsmith-cli.git
+  CLI_COMMIT: 05c02d2af0ab908b472d780b6fdaac8a9d292789
   OIDC_ORG: iduffy-demo
   OIDC_SERVICE_SLUG: azure-devops-0v19
 
 steps:
-- task: UseNode@1
-  displayName: 'Install Node.js 20'
-  inputs:
-    version: '20.x'
+- script: |
+    set -euo pipefail
+    echo "CI=${CI:-<unset>} TF_BUILD=${TF_BUILD:-<unset>}"
+    python3 -m venv "$(Agent.TempDirectory)/release"
+    "$(Agent.TempDirectory)/release/bin/pip" install -q --upgrade pip
+    "$(Agent.TempDirectory)/release/bin/pip" install -q cloudsmith-cli
+    python3 -m venv "$(Agent.TempDirectory)/fix"
+    "$(Agent.TempDirectory)/fix/bin/pip" install -q --upgrade pip
+    "$(Agent.TempDirectory)/fix/bin/pip" install -q "git+$CLI_REPOSITORY@$CLI_COMMIT"
+    echo "release: $("$(Agent.TempDirectory)/release/bin/cloudsmith" --version | head -n 1)"
+    echo "fix: $("$(Agent.TempDirectory)/fix/bin/cloudsmith" --version | head -n 1)"
+  displayName: 'Install the released CLI and the fix'
 
 - script: |
-    mkdir -p "$(dirname "$RESULTS_FILE")"
-    echo "build=$(Build.BuildId) task_commit=$TASK_COMMIT" > "$RESULTS_FILE"
-    git init -q "$(Agent.TempDirectory)/ado-integration"
-    cd "$(Agent.TempDirectory)/ado-integration"
-    git fetch -q --depth 1 "$TASK_REPOSITORY" "$TASK_COMMIT"
-    git checkout -q FETCH_HEAD
-    cd cloudsmith-task
-    npm ci --omit=dev --no-audit --no-fund
-    echo "PASS fetch: task $(git rev-parse HEAD)" >> "$RESULTS_FILE"
-  displayName: 'Fetch the task under test'
+    set -uo pipefail
+    failures=0
 
-- script: |
-    echo "INPUT_ names in the step env: $(compgen -e | grep '^INPUT_' | tr '\n' ' ')"
-    # The Command Line task removes INPUT_ variables from the script env,
-    # so set the inputs of the task under test here.
-    export INPUT_CLIVERSION=latest INPUT_AUTHMETHOD=oidc
-    export INPUT_OIDCNAMESPACE="$OIDC_ORG" INPUT_OIDCSERVICESLUG="$OIDC_SERVICE_SLUG"
-    export INPUT_EXPORTAUTHTOKEN=true INPUT_VERIFYAUTH=true
-    node "$TASK_DIR/main.js"
-  displayName: 'Task run 1: OIDC with exportAuthToken and verifyAuth'
+    run_case() {
+      local name="$1" cli="$2" expect_warning="$3" expect_store="$4"
+      shift 4
+      local home output warnings attempt
+      home="$(mktemp -d)"
+      for attempt in 1 2; do
+        output="$(env -u CI -u CLOUDSMITH_API_KEY HOME="$home" XDG_DATA_HOME="$home/data" \
+          CLOUDSMITH_ORG="$OIDC_ORG" CLOUDSMITH_SERVICE_SLUG="$OIDC_SERVICE_SLUG" "$@" \
+          "$cli" whoami 2>&1)"
+        echo "----- $name, run $attempt -----"
+        echo "$output"
+        warnings="$(grep -cE 'GetPassWarning|password for your new keyring|password for encrypted keyring' <<< "$output" || true)"
+        if [ "$expect_warning" = yes ] && [ "$warnings" -eq 0 ]; then
+          echo "RESULT FAIL $name run $attempt: expected a password prompt, saw none"; failures=$((failures + 1))
+        elif [ "$expect_warning" = no ] && [ "$warnings" -ne 0 ]; then
+          echo "RESULT FAIL $name run $attempt: saw $warnings password prompt lines"; failures=$((failures + 1))
+        else
+          echo "RESULT PASS $name run $attempt: password prompt lines=$warnings"
+        fi
+        if [ "$expect_warning" = no ]; then
+          if grep -q '^User:' <<< "$output"; then
+            echo "RESULT PASS $name run $attempt: whoami authenticated"
+          else
+            echo "RESULT FAIL $name run $attempt: whoami did not authenticate"; failures=$((failures + 1))
+          fi
+        fi
+      done
+      local keyring_files disk_files
+      keyring_files="$(find "$home" -name '*_pass.cfg' | wc -l)"
+      disk_files="$(find "$home" -name 'oidc_*.json' | wc -l)"
+      echo "INFO $name: keyring files=$keyring_files disk cache files=$disk_files"
+      case "$expect_store" in
+        disk) [ "$keyring_files" -eq 0 ] && [ "$disk_files" -ge 1 ] ;;
+        keyring) [ "$keyring_files" -ge 1 ] && [ "$disk_files" -eq 0 ] ;;
+        any) true ;;
+      esac && echo "RESULT PASS $name: token stored in $expect_store" \
+        || { echo "RESULT FAIL $name: token not stored in $expect_store"; failures=$((failures + 1)); }
+    }
+
+    run_case release "$(Agent.TempDirectory)/release/bin/cloudsmith" yes any
+    run_case fix-no-key "$(Agent.TempDirectory)/fix/bin/cloudsmith" no disk
+    run_case fix-with-key "$(Agent.TempDirectory)/fix/bin/cloudsmith" no keyring \
+      CLOUDSMITH_KEYRING_KEY=e2e-keyring-password
+
+    echo "RESULT failures=$failures"
+    exit "$failures"
+  displayName: 'Run the OIDC cases'
   env:
     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
-
-- script: |
-    test -z "${CLOUDSMITH_API_KEY:-}"
-    echo "PASS secret: CLOUDSMITH_API_KEY is not in an unmapped step env" >> "$RESULTS_FILE"
-    test "$CLOUDSMITH_USERNAME" = token
-    echo "PASS username: CLOUDSMITH_USERNAME=$CLOUDSMITH_USERNAME" >> "$RESULTS_FILE"
-    echo "INFO cli: $(cloudsmith --version 2>&1 | head -n 1 || true)" >> "$RESULTS_FILE"
-  displayName: 'Check the exported variables'
-
-- script: |
-    self="$(curl -fsS --max-time 30 -H "X-Api-Key: $CLOUDSMITH_API_KEY" https://api.cloudsmith.io/v1/user/self/)"
-    test "$(jq -r .authenticated <<< "$self")" = true
-    echo "PASS curl: authenticated as $(jq -r .slug <<< "$self")" >> "$RESULTS_FILE"
-    status="$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -H "X-Api-Key: $CLOUDSMITH_API_KEY" "https://api.cloudsmith.io/v1/repos/$OIDC_ORG/")"
-    test "$status" = 200
-    echo "PASS curl: list repos in $OIDC_ORG returned $status" >> "$RESULTS_FILE"
-    whoami="$(env -u SYSTEM_ACCESSTOKEN -u SYSTEM_OIDCREQUESTURI -u CLOUDSMITH_ORG -u CLOUDSMITH_SERVICE_SLUG \
-      cloudsmith whoami 2>&1)"
-    echo "$whoami"
-    # Some CLI builds exit 0 on a 401, so check the output as well.
-    if grep -qF 'Failed to retrieve your authentication status' <<< "$whoami"; then
-      exit 1
-    fi
-    echo "PASS cli: whoami with the exported key only" >> "$RESULTS_FILE"
-  displayName: 'Use the exported token without OIDC'
-  env:
-    CLOUDSMITH_API_KEY: $(CLOUDSMITH_API_KEY)
-
-- script: |
-    echo "INPUT_ names in the step env: $(compgen -e | grep '^INPUT_' | tr '\n' ' ')"
-    # The Command Line task removes INPUT_ variables from the script env,
-    # so set the inputs of the task under test here.
-    export INPUT_CLIVERSION=latest INPUT_AUTHMETHOD=oidc
-    export INPUT_OIDCNAMESPACE="$OIDC_ORG" INPUT_OIDCSERVICESLUG="$OIDC_SERVICE_SLUG"
-    export INPUT_EXPORTAUTHTOKEN=true INPUT_VERIFYAUTH=true
-    node "$TASK_DIR/main.js"
-  displayName: 'Task run 2: stale inherited key is ignored'
-  env:
-    CLOUDSMITH_API_KEY: stale-invalid-token
-    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
-
-- script: |
-    test "$CLOUDSMITH_API_KEY" != stale-invalid-token
-    self="$(curl -fsS --max-time 30 -H "X-Api-Key: $CLOUDSMITH_API_KEY" https://api.cloudsmith.io/v1/user/self/)"
-    test "$(jq -r .authenticated <<< "$self")" = true
-    echo "PASS rerun: second export authenticated as $(jq -r .slug <<< "$self")" >> "$RESULTS_FILE"
-  displayName: 'Check the token from run 2'
-  env:
-    CLOUDSMITH_API_KEY: $(CLOUDSMITH_API_KEY)
-
-- script: echo "RESULT $(Agent.JobStatus)" >> "$RESULTS_FILE"
-  displayName: 'Record the job status'
-  condition: always()
