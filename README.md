@@ -92,14 +92,14 @@ Prerequisite: the `github-c3xe` service in `iduffy-demo` trusts GitHub's issuer 
 ## GitHub Actions
 
 [`.github/workflows/oidc-smoke-test.yml`](.github/workflows/oidc-smoke-test.yml) installs
-the latest release of the CLI from PyPI and exercises OIDC auto-discovery against org `iduffy-demo` / service slug `github-09kg`.
+the latest release of the CLI from PyPI and exercises OIDC auto-discovery against org `iduffy-demo` / service slug `github-c3xe`.
 Trigger it from the **Actions** tab (`workflow_dispatch`) or by pushing to `main`.
 
-Success: Phase 1 (`whoami --verbose`) reports `Source: OIDC via GitHub Actions`, and Phase 2
+Success: Phase 1 (`whoami --verbose`) reports the `github-c3xe` service as the user, and Phase 2
 (`list repos`) succeeds. The workflow does not use `--debug`, because the CLI then prints the
 exchanged Cloudsmith token in the request headers, and the build log is public.
 
-Prerequisite: the `github-09kg` service in `iduffy-demo` trusts GitHub's issuer
+Prerequisite: the `github-c3xe` service in `iduffy-demo` trusts GitHub's issuer
 (`https://token.actions.githubusercontent.com`) with audience `cloudsmith`.
 
 ## Google Cloud Build

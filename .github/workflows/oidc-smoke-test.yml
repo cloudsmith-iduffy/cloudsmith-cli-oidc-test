@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CLOUDSMITH_ORG: iduffy-demo
-      CLOUDSMITH_SERVICE_SLUG: github-09kg
+      CLOUDSMITH_SERVICE_SLUG: github-c3xe
     steps:
       - uses: actions/setup-python@v5
         with:
@@ -28,7 +28,8 @@ jobs:
       - name: Phase 1 - detection + OIDC token exchange
         run: |
           cloudsmith whoami --verbose | tee whoami.txt
-          grep -q "Source: OIDC via GitHub Actions" whoami.txt
+          # No other credential is configured, so only the OIDC exchange signs in as the service.
+          grep -qF "(slug: ${CLOUDSMITH_SERVICE_SLUG})" whoami.txt
 
       - name: Phase 2 - full auth round-trip
         run: cloudsmith list repos "$CLOUDSMITH_ORG"
