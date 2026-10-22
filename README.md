@@ -75,6 +75,10 @@ the example with a new version. Then it checks that the build log shows
 `Using the cloudsmith CLI credential for` both the download URL and the upload URL. The job
 fails if one of these lines is missing.
 
+The repository does not include `.mvn/extensions.xml` of `example:maven-local` or
+`project/cloudsmith.sbt` of `example:sbt-local`. In each run, `install --local` writes them, so
+the job also tests that the command writes the file. In your own project, commit these files.
+
 To run an example on your machine, set the repository and run the task:
 
 ```sh
