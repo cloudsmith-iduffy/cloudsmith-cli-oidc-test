@@ -32,8 +32,8 @@ jobs:
           command: |
             python3 -c "import base64,json,os; t=os.environ['CIRCLE_OIDC_TOKEN_V2']; p=t.split('.')[1]; p+='='*(-len(p)%4); c=json.loads(base64.urlsafe_b64decode(p)); print(chr(10).join(k+': '+str(c.get(k)) for k in ('iss','sub','aud','exp')))"
       - run:
-          name: Install cloudsmith-cli from the feature branch
-          command: pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/circleci"
+          name: Install the latest cloudsmith-cli release
+          command: pip install cloudsmith-cli
       - run:
           name: OIDC auto-discovery round-trip
           command: |

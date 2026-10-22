@@ -46,25 +46,6 @@ curl --fail-with-body --request POST \
 Success is `PASS: Cloudsmith authenticated through Buildkite OIDC`; a missing Buildkite
 token, rejected OIDC exchange, anonymous response, or fallback authentication fails the job.
 
-## GitHub Actions — Maven shell-plugin (download + native upload)
-
-[`.github/workflows/maven-oidc.yml`](.github/workflows/maven-oidc.yml) installs the CLI from
-[`maven-shell-plugin`](https://github.com/cloudsmith-io/cloudsmith-cli/tree/maven-shell-plugin)
-and proves the Maven shell-plugin credential helper end-to-end with **GitHub OIDC only** (no
-API key anywhere). Against org `iduffy-demo` / repo `default` / service slug `github-c3xe`, it:
-
-1. `cloudsmith credential-helper install maven --org iduffy-demo --repo default` and puts the
-   shim dir on `PATH` (the CI equivalent of `eval "$(cloudsmith credential-helper shell-init)"`),
-2. runs a plain `mvn clean deploy` in [`maven-example/`](maven-example) — the shadowed `mvn`
-   transparently **downloads** `io.cloudsmith.maven.example:cloudsmith-maven-cli:1.0.1090591`
-   from the download CDN and **uploads** the freshly built jar to the native Maven endpoint
-   (`https://maven.cloudsmith.io/iduffy-demo/default/`), authenticated via an ephemeral
-   settings.xml minted from the OIDC token.
-
-Prerequisite: the `github-c3xe` service in `iduffy-demo` trusts GitHub's issuer
-(`https://token.actions.githubusercontent.com`) with audience `cloudsmith`, and can read/write
-the `default` repo.
-
 ## GitHub Actions — Cloudsmith Maven tools
 
 [`.github/workflows/maven-tools.yml`](.github/workflows/maven-tools.yml) tests the Cloudsmith
@@ -111,13 +92,12 @@ Prerequisite: the `github-c3xe` service in `iduffy-demo` trusts GitHub's issuer 
 ## GitHub Actions
 
 [`.github/workflows/oidc-smoke-test.yml`](.github/workflows/oidc-smoke-test.yml) installs
-the CLI from [`iduffy/github-actions`](https://github.com/cloudsmith-io/cloudsmith-cli/tree/iduffy/github-actions)
-and exercises OIDC auto-discovery against org `iduffy-demo` / service slug `github-09kg`.
+the latest release of the CLI from PyPI and exercises OIDC auto-discovery against org `iduffy-demo` / service slug `github-09kg`.
 Trigger it from the **Actions** tab (`workflow_dispatch`) or by pushing to `main`.
 
-Success: Phase 1 (`whoami --debug`) logs `Detected OIDC environment: GitHub Actions` with
-no "Failed to retrieve identity token"; Phase 2 (`whoami --verbose`) reports
-`Source: OIDC via GitHub Actions` and `list repos` succeeds.
+Success: Phase 1 (`whoami --verbose`) reports `Source: OIDC via GitHub Actions`, and Phase 2
+(`list repos`) succeeds. The workflow does not use `--debug`, because the CLI then prints the
+exchanged Cloudsmith token in the request headers, and the build log is public.
 
 Prerequisite: the `github-09kg` service in `iduffy-demo` trusts GitHub's issuer
 (`https://token.actions.githubusercontent.com`) with audience `cloudsmith`.

@@ -20,13 +20,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install cloudsmith-cli from the feature branch
-        run: pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/github-actions"
+      - name: Install the latest cloudsmith-cli release
+        run: pip install cloudsmith-cli
 
-      - name: Phase 1 - detection + OIDC token fetch (debug)
-        run: cloudsmith whoami --debug
+      # No --debug: it prints the exchanged Cloudsmith token in the request headers, and this
+      # build log is public.
+      - name: Phase 1 - detection + OIDC token exchange
+        run: |
+          cloudsmith whoami --verbose | tee whoami.txt
+          grep -q "Source: OIDC via GitHub Actions" whoami.txt
 
       - name: Phase 2 - full auth round-trip
-        run: |
-          cloudsmith whoami --verbose
-          cloudsmith list repos "$CLOUDSMITH_ORG"
+        run: cloudsmith list repos "$CLOUDSMITH_ORG"
