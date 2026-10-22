@@ -1,1 +1,7 @@
 .env
+.tools/
+build.log
+target/
+build/
+.gradle/
+.bsp/

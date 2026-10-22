@@ -65,6 +65,49 @@ Prerequisite: the `github-c3xe` service in `iduffy-demo` trusts GitHub's issuer
 (`https://token.actions.githubusercontent.com`) with audience `cloudsmith`, and can read/write
 the `default` repo.
 
+## GitHub Actions — Cloudsmith Maven tools
+
+[`.github/workflows/maven-tools.yml`](.github/workflows/maven-tools.yml) tests the Cloudsmith
+Maven tools with the CLI from
+[`iduffy/credential-helper-jvm`](https://github.com/cloudsmith-io/cloudsmith-cli/pull/520).
+The Maven extension and the Gradle and sbt plugins get their credential from the generic
+credential helper, `cloudsmith credential-helper generic`. In CI, the CLI gets that credential
+through GitHub OIDC, so no build file, settings file, or secret has a credential.
+
+[mise](https://mise.jdx.dev/) installs Java, Maven, Gradle, sbt, and uv from
+[`mise.toml`](mise.toml). Each example in [`maven-tools/`](maven-tools) is a `mise run` task
+and a job in the workflow:
+
+| Task | Set up with | Scope |
+| -- | -- | -- |
+| `example:maven-global` | `install maven`, which writes `~/.m2/extensions.xml` (Maven 3.10) | Every Maven build |
+| `example:maven-mavenrc` | `install maven --mavenrc`, which adds a block to `~/.mavenrc` (Maven 3.9) | Every Maven build |
+| `example:maven-local` | `install maven --local`, which writes `.mvn/extensions.xml` (Maven 3.9) | One project |
+| `example:gradle-global` | `install gradle`, which writes `~/.gradle/init.d/cloudsmith.init.gradle.kts` | Every Gradle build |
+| `example:gradle-local` | The `plugins` block in `settings.gradle.kts`, which `install gradle --local` prints | One build |
+| `example:sbt-global` | `install sbt`, which writes `~/.sbt/1.0/plugins/cloudsmith.sbt` | Every sbt build |
+| `example:sbt-local` | `install sbt --local`, which writes `project/cloudsmith.sbt` | One build |
+
+Each task runs [`maven-tools/run.sh`](maven-tools/run.sh). The script sets up the tool, downloads
+`io.cloudsmith.maven.example:cloudsmith-maven-cli` from the `default` repository, and publishes
+the example with a new version. Then it checks that the build log shows
+`Using the cloudsmith CLI credential for` both the download URL and the upload URL. The job
+fails if one of these lines is missing.
+
+To run an example on your machine, set the repository and run the task:
+
+```sh
+mise run cli
+export CLOUDSMITH_ORG=iduffy-demo CLOUDSMITH_REPO=default
+mise run example:maven-local
+```
+
+The global examples change `~/.m2`, `~/.mavenrc`, `~/.gradle`, or `~/.sbt` on your machine. To
+undo them, run `cloudsmith credential-helper uninstall maven`, `gradle`, or `sbt`.
+
+Prerequisite: the `github-c3xe` service in `iduffy-demo` trusts GitHub's issuer with audience
+`cloudsmith`, and can read and write the `default` repository.
+
 ## GitHub Actions
 
 [`.github/workflows/oidc-smoke-test.yml`](.github/workflows/oidc-smoke-test.yml) installs

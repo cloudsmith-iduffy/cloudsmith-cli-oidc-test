@@ -1,0 +1,45 @@
+name: maven-tools
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write # exchanged for a Cloudsmith token through OIDC
+
+env:
+  # The CLI also reads CLOUDSMITH_ORG as the workspace whose custom domains it lists.
+  CLOUDSMITH_ORG: iduffy-demo
+  CLOUDSMITH_REPO: default
+  CLOUDSMITH_SERVICE_SLUG: github-c3xe
+
+jobs:
+  example:
+    name: ${{ matrix.example }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+          - maven-global
+          - maven-mavenrc
+          - maven-local
+          - gradle-global
+          - gradle-local
+          - sbt-global
+          - sbt-local
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Java, Maven, Gradle, sbt, and uv with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+
+      - name: Install the Cloudsmith CLI
+        run: mise run cli
+
+      - name: Run the example
+        run: mise run "example:${{ matrix.example }}"

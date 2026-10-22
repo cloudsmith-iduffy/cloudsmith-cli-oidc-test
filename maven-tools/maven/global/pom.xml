@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.cloudsmith.example</groupId>
+  <artifactId>maven-tools-maven-global</artifactId>
+  <!-- run.sh sets a new version for each run. -->
+  <version>0.0.0</version>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <!-- No credentials here or in settings.xml: the Cloudsmith extension gets them from the CLI. -->
+  <repositories>
+    <repository>
+      <id>cloudsmith</id>
+      <url>https://dl.cloudsmith.io/basic/${env.CLOUDSMITH_ORG}/${env.CLOUDSMITH_REPO}/maven/</url>
+    </repository>
+  </repositories>
+  <distributionManagement>
+    <repository>
+      <id>cloudsmith</id>
+      <url>https://maven.cloudsmith.io/${env.CLOUDSMITH_ORG}/${env.CLOUDSMITH_REPO}/</url>
+    </repository>
+  </distributionManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.cloudsmith.maven.example</groupId>
+      <artifactId>cloudsmith-maven-cli</artifactId>
+      <version>1.0.1090591</version>
+    </dependency>
+  </dependencies>
+</project>
