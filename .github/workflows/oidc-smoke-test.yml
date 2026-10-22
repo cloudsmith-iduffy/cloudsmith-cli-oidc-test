@@ -21,15 +21,20 @@ jobs:
           python-version: "3.12"
 
       - name: Install the latest cloudsmith-cli release
-        run: pip install cloudsmith-cli
+        run: pip install "git+https://github.com/cloudsmith-io/cloudsmith-cli.git@iduffy/whoami-oidc"
 
       # No --debug: it prints the exchanged Cloudsmith token in the request headers, and this
       # build log is public.
       - name: Phase 1 - detection + OIDC token exchange
         run: |
           cloudsmith whoami --verbose | tee whoami.txt
-          # No other credential is configured, so only the OIDC exchange signs in as the service.
-          grep -qF "(slug: ${CLOUDSMITH_SERVICE_SLUG})" whoami.txt
+          grep -qF "Authentication Method: OIDC Auto-Discovery" whoami.txt
+          grep -qF "Source: OIDC via GitHub Actions (org: ${CLOUDSMITH_ORG}, service: ${CLOUDSMITH_SERVICE_SLUG})" whoami.txt
+
+      - name: Phase 1b - the cached token names the vendor
+        run: |
+          cloudsmith whoami --verbose | tee whoami-cached.txt
+          grep -qF "Source: OIDC via GitHub Actions [cached] (org: ${CLOUDSMITH_ORG}, service: ${CLOUDSMITH_SERVICE_SLUG})" whoami-cached.txt
 
       - name: Phase 2 - full auth round-trip
         run: cloudsmith list repos "$CLOUDSMITH_ORG"
