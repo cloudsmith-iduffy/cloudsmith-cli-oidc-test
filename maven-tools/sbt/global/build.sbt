@@ -10,6 +10,7 @@ crossPaths := false
 
 // No credentials here or in ~/.sbt: the Cloudsmith plugin gets them from the CLI.
 resolvers += "cloudsmith" at s"https://dl.cloudsmith.io/basic/$workspace/$repository/maven/"
-publishTo := Some("cloudsmith" at s"https://maven.cloudsmith.io/$workspace/$repository/")
+// The publish target needs a name that no resolver has: sbt looks it up by name.
+publishTo := Some("cloudsmith-publish" at s"https://maven.cloudsmith.io/$workspace/$repository/")
 
 libraryDependencies += "io.cloudsmith.maven.example" % "cloudsmith-maven-cli" % "1.0.1090591"
