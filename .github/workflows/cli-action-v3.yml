@@ -33,7 +33,6 @@ jobs:
           oidc-namespace: ${{ env.CLOUDSMITH_ORG }}
           oidc-service-slug: ${{ env.CLOUDSMITH_SERVICE_SLUG }}
           verify-auth: "true"
-          export-auth-token: "true"
 
       - name: Check the installed CLI version
         env:
