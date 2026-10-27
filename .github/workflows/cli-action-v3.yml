@@ -1,0 +1,55 @@
+name: cli-action-v3
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write # exchanged for a Cloudsmith token through OIDC
+
+env:
+  CLOUDSMITH_ORG: iduffy-demo
+  CLOUDSMITH_SERVICE_SLUG: github-c3xe
+
+jobs:
+  v3:
+    name: v3 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # The moving v3 tag is the thing under test, so it is not pinned to a SHA.
+      - name: Set up the Cloudsmith CLI with OIDC
+        id: cli
+        uses: cloudsmith-io/cloudsmith-cli-action@v3
+        with:
+          oidc-namespace: ${{ env.CLOUDSMITH_ORG }}
+          oidc-service-slug: ${{ env.CLOUDSMITH_SERVICE_SLUG }}
+          verify-auth: "true"
+          export-auth-token: "true"
+
+      - name: Check the installed CLI version
+        env:
+          RESOLVED_VERSION: ${{ steps.cli.outputs.cli-version }}
+        run: |
+          echo "The action resolved CLI $RESOLVED_VERSION"
+          cloudsmith --version | tee version.txt
+          grep -qF "$RESOLVED_VERSION" version.txt
+
+      - name: Check the OIDC sign-in
+        run: |
+          cloudsmith whoami --verbose | tee whoami.txt
+          grep -qF "(slug: ${CLOUDSMITH_SERVICE_SLUG})" whoami.txt
+          cloudsmith list repos "$CLOUDSMITH_ORG" > /dev/null
+
+      - name: Check the exported token
+        run: |
+          test -n "$CLOUDSMITH_API_KEY"
+          echo "CLOUDSMITH_USERNAME=$CLOUDSMITH_USERNAME"
