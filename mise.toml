@@ -6,7 +6,8 @@ gradle = "9.8.1"
 uv = "0.13.4"
 
 [env]
-# The branch of cloudsmith-io/cloudsmith-cli that `mise run cli` installs.
+# The branch of cloudsmith-io/cloudsmith-cli that `mise run cli` installs. Remove the `cli` task
+# and these settings after a CLI release has `credential-helper install maven`.
 CLOUDSMITH_CLI_REF = "iduffy/credential-helper-jvm"
 # Keep that CLI in this checkout, apart from other cloudsmith commands on PATH.
 UV_TOOL_DIR = "{{config_root}}/.tools/uv"
@@ -19,37 +20,32 @@ run = 'uv tool install --force "cloudsmith-cli @ git+https://github.com/cloudsmi
 
 [tasks."example:maven-global"]
 description = "Maven 3.10: set up every build through ~/.m2/extensions.xml, then deploy"
-dir = "{{config_root}}/maven-tools/maven/global"
-run = "../../run.sh maven global"
+dir = "{{config_root}}/maven-tools/maven"
+run = "../run.sh maven global"
 
 [tasks."example:maven-mavenrc"]
 description = "Maven 3.9: set up every build through ~/.mavenrc, then deploy"
-dir = "{{config_root}}/maven-tools/maven/mavenrc"
+dir = "{{config_root}}/maven-tools/maven"
 tools = { "aqua:apache/maven" = "3.9.11" }
-run = "../../run.sh maven mavenrc"
+run = "../run.sh maven mavenrc"
 
 [tasks."example:maven-local"]
 description = "Maven 3.9: set up one project through .mvn/extensions.xml, then deploy"
-dir = "{{config_root}}/maven-tools/maven/local"
+dir = "{{config_root}}/maven-tools/maven"
 tools = { "aqua:apache/maven" = "3.9.11" }
-run = "../../run.sh maven local"
+run = "../run.sh maven local"
 
 [tasks."example:gradle-global"]
 description = "Gradle: set up every build through an init script, then publish"
-dir = "{{config_root}}/maven-tools/gradle/global"
-run = "../../run.sh gradle global"
-
-[tasks."example:gradle-local"]
-description = "Gradle: apply the plugin in settings.gradle.kts of one build, then publish"
-dir = "{{config_root}}/maven-tools/gradle/local"
-run = "../../run.sh gradle local"
+dir = "{{config_root}}/maven-tools/gradle"
+run = "../run.sh gradle global"
 
 [tasks."example:sbt-global"]
 description = "sbt: set up every build through a global plugin, then publish"
-dir = "{{config_root}}/maven-tools/sbt/global"
-run = "../../run.sh sbt global"
+dir = "{{config_root}}/maven-tools/sbt"
+run = "../run.sh sbt global"
 
 [tasks."example:sbt-local"]
 description = "sbt: set up one build through project/cloudsmith.sbt, then publish"
-dir = "{{config_root}}/maven-tools/sbt/local"
-run = "../../run.sh sbt local"
+dir = "{{config_root}}/maven-tools/sbt"
+run = "../run.sh sbt local"

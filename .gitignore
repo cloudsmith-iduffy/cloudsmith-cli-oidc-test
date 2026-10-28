@@ -6,5 +6,5 @@ build/
 .gradle/
 .bsp/
 # Written by `cloudsmith credential-helper install --local` in each run.
-maven-tools/maven/local/.mvn/
-maven-tools/sbt/local/project/cloudsmith.sbt
+maven-tools/maven/.mvn/
+maven-tools/sbt/project/cloudsmith.sbt

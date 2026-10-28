@@ -48,7 +48,3 @@ jobs:
           grep -qF "(slug: ${CLOUDSMITH_SERVICE_SLUG})" whoami.txt
           cloudsmith list repos "$CLOUDSMITH_ORG" > /dev/null
 
-      - name: Check the exported token
-        run: |
-          test -n "$CLOUDSMITH_API_KEY"
-          echo "CLOUDSMITH_USERNAME=$CLOUDSMITH_USERNAME"

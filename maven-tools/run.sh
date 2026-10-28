@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Sets up the Cloudsmith Maven tools for the example in the current directory, builds and
-# publishes the example, and checks that the build used the CLI credential for both the download
-# URL and the upload URL.
+# Sets up the Cloudsmith Maven tools with `cloudsmith credential-helper install`, builds and
+# publishes the example in the current directory, and checks that the build used the CLI
+# credential for both the download URL and the upload URL. Then it removes the setup with
+# `cloudsmith credential-helper uninstall`.
 # Usage: run.sh maven|gradle|sbt global|local|mavenrc
 set -euo pipefail
 
@@ -10,16 +11,17 @@ scope="${2:?Usage: run.sh maven|gradle|sbt global|local|mavenrc}"
 : "${CLOUDSMITH_ORG:?Set CLOUDSMITH_ORG to your Cloudsmith workspace.}"
 : "${CLOUDSMITH_REPO:?Set CLOUDSMITH_REPO to a Cloudsmith repository that you can write to.}"
 # Cloudsmith rejects a release version that it already has, so each run publishes a new one.
-export EXAMPLE_VERSION="${EXAMPLE_VERSION:-0.1.$(date +%s)}"
+# The scope keeps the versions of parallel jobs apart.
+export EXAMPLE_VERSION="${EXAMPLE_VERSION:-0.1.$(date +%s)-${scope}}"
 
-# Gradle has no init scripts for one build: the local example applies the plugin in
-# settings.gradle.kts instead.
-if [ "${tool}/${scope}" != "gradle/local" ]; then
-  case "${scope}" in
-    global) cloudsmith credential-helper install "${tool}" ;;
-    *) cloudsmith credential-helper install "${tool}" "--${scope}" ;;
-  esac
-fi
+install_option=""
+[ "${scope}" = "global" ] || install_option="--${scope}"
+# Without --local, uninstall removes the setup of every build, which includes the ~/.mavenrc block.
+uninstall_option=""
+[ "${scope}" != "local" ] || uninstall_option="--local"
+
+cloudsmith --version
+cloudsmith credential-helper install "${tool}" ${install_option:+"${install_option}"}
 
 case "${tool}" in
   maven)
@@ -45,4 +47,6 @@ for url in \
   fi
   echo "Used the CLI credential for ${url}"
 done
+
+cloudsmith credential-helper uninstall "${tool}" ${uninstall_option:+"${uninstall_option}"}
 echo "PASS: ${tool} ${scope} downloaded from and published ${EXAMPLE_VERSION} to Cloudsmith."

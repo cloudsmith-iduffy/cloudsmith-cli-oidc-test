@@ -10,4 +10,4 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "maven-tools-gradle-global"
+rootProject.name = "maven-tools-gradle"

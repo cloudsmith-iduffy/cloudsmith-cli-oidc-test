@@ -2,7 +2,7 @@ val workspace = sys.env("CLOUDSMITH_ORG")
 val repository = sys.env("CLOUDSMITH_REPO")
 
 organization := "io.cloudsmith.example"
-name := "maven-tools-sbt-global"
+name := "maven-tools-sbt"
 version := sys.env("EXAMPLE_VERSION")
 // A Java-only build, so the artifact name has no Scala version.
 autoScalaLibrary := false

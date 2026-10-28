@@ -46,40 +46,57 @@ curl --fail-with-body --request POST \
 Success is `PASS: Cloudsmith authenticated through Buildkite OIDC`; a missing Buildkite
 token, rejected OIDC exchange, anonymous response, or fallback authentication fails the job.
 
-## GitHub Actions — Cloudsmith Maven tools
+## GitHub Actions
 
-[`.github/workflows/maven-tools.yml`](.github/workflows/maven-tools.yml) tests the Cloudsmith
-Maven tools with the CLI from
-[`iduffy/credential-helper-jvm`](https://github.com/cloudsmith-io/cloudsmith-cli/pull/520).
-The Maven extension and the Gradle and sbt plugins get their credential from the generic
-credential helper, `cloudsmith credential-helper generic`. In CI, the CLI gets that credential
-through GitHub OIDC, so no build file, settings file, or secret has a credential.
+The GitHub Actions workflows use
+[`cloudsmith-io/cloudsmith-cli-action@v3`](https://github.com/cloudsmith-io/cloudsmith-cli-action)
+to sign in through OIDC as the `github-c3xe` service in `iduffy-demo`. No workflow has a secret.
+
+Prerequisite: the `github-c3xe` service trusts GitHub's issuer
+(`https://token.actions.githubusercontent.com`) for this repository, and can read and write the
+`default` repository.
+
+### cli-action-v3
+
+[`.github/workflows/cli-action-v3.yml`](.github/workflows/cli-action-v3.yml) tests the moving `v3`
+tag of the action on Linux, macOS, and Windows. Each job checks that the action installs the CLI
+version that it reports, and that `whoami` and `list repos` work as the `github-c3xe` service. The
+workflow does not use `--debug`, because the CLI then prints the exchanged Cloudsmith token, and
+the build log is public.
+
+### maven-tools
+
+[`.github/workflows/maven-tools.yml`](.github/workflows/maven-tools.yml) tests the
+[Cloudsmith Maven tools](https://cloudsmith.io/~cloudsmith/repos/maven-tools/packages/) from end to
+end. Each job starts with `cloudsmith credential-helper install`, downloads a package from the
+private `default` repository, publishes a new version of the example to that repository, and ends
+with `cloudsmith credential-helper uninstall`. The Maven extension and the Gradle and sbt plugins
+get the credential from `cloudsmith credential-helper generic`, so no build file or settings file
+has a credential.
+
+The released CLI does not have `credential-helper install maven` yet. Until it does, `mise run cli`
+installs the CLI from
+[cloudsmith-io/cloudsmith-cli#520](https://github.com/cloudsmith-io/cloudsmith-cli/pull/520), and
+the action supplies only the OIDC settings.
 
 [mise](https://mise.jdx.dev/) installs Java, Maven, Gradle, sbt, and uv from
-[`mise.toml`](mise.toml). Each example in [`maven-tools/`](maven-tools) is a `mise run` task
-and a job in the workflow:
+[`mise.toml`](mise.toml). There is one example project for each tool in
+[`maven-tools/`](maven-tools). Each `mise run` task is a job in the workflow:
 
-| Task | Set up with | Scope |
+| Task | Command | Changes |
 | -- | -- | -- |
-| `example:maven-global` | `install maven`, which writes `~/.m2/extensions.xml` (Maven 3.10) | Every Maven build |
-| `example:maven-mavenrc` | `install maven --mavenrc`, which adds a block to `~/.mavenrc` (Maven 3.9) | Every Maven build |
-| `example:maven-local` | `install maven --local`, which writes `.mvn/extensions.xml` (Maven 3.9) | One project |
-| `example:gradle-global` | `install gradle`, which writes `~/.gradle/init.d/cloudsmith.init.gradle.kts` | Every Gradle build |
-| `example:gradle-local` | The `plugins` block in `settings.gradle.kts`, which `install gradle --local` prints | One build |
-| `example:sbt-global` | `install sbt`, which writes `~/.sbt/1.0/plugins/cloudsmith.sbt` | Every sbt build |
-| `example:sbt-local` | `install sbt --local`, which writes `project/cloudsmith.sbt` | One build |
+| `example:maven-global` | `install maven` | `~/.m2/extensions.xml` (Maven 3.10) |
+| `example:maven-mavenrc` | `install maven --mavenrc` | `~/.mavenrc` (Maven 3.9) |
+| `example:maven-local` | `install maven --local` | `.mvn/extensions.xml` of the project (Maven 3.9) |
+| `example:gradle-global` | `install gradle` | `~/.gradle/init.d/cloudsmith.init.gradle.kts` |
+| `example:sbt-global` | `install sbt` | `~/.sbt/1.0/plugins/cloudsmith.sbt` |
+| `example:sbt-local` | `install sbt --local` | `project/cloudsmith.sbt` of the project |
 
-Each task runs [`maven-tools/run.sh`](maven-tools/run.sh). The script sets up the tool, downloads
-`io.cloudsmith.maven.example:cloudsmith-maven-cli` from the `default` repository, and publishes
-the example with a new version. Then it checks that the build log shows
-`Using the cloudsmith CLI credential for` both the download URL and the upload URL. The job
-fails if one of these lines is missing.
+Each task runs [`maven-tools/run.sh`](maven-tools/run.sh). The script checks that the build log
+shows `Using the cloudsmith CLI credential for` both the download URL and the upload URL. The job
+fails if one of these lines is missing, or if a `cloudsmith` command fails.
 
-The repository does not include `.mvn/extensions.xml` of `example:maven-local` or
-`project/cloudsmith.sbt` of `example:sbt-local`. In each run, `install --local` writes them, so
-the job also tests that the command writes the file. In your own project, commit these files.
-
-To run an example on your machine, set the repository and run the task:
+To run an example on your machine, sign in to the CLI, set the repository, and run the task:
 
 ```sh
 mise run cli
@@ -87,24 +104,10 @@ export CLOUDSMITH_ORG=iduffy-demo CLOUDSMITH_REPO=default
 mise run example:maven-local
 ```
 
-The global examples change `~/.m2`, `~/.mavenrc`, `~/.gradle`, or `~/.sbt` on your machine. To
-undo them, run `cloudsmith credential-helper uninstall maven`, `gradle`, or `sbt`.
-
-Prerequisite: the `github-c3xe` service in `iduffy-demo` trusts GitHub's issuer with audience
-`cloudsmith`, and can read and write the `default` repository.
-
-## GitHub Actions
-
-[`.github/workflows/oidc-smoke-test.yml`](.github/workflows/oidc-smoke-test.yml) installs
-the latest release of the CLI from PyPI and exercises OIDC auto-discovery against org `iduffy-demo` / service slug `github-c3xe`.
-Trigger it from the **Actions** tab (`workflow_dispatch`) or by pushing to `main`.
-
-Success: Phase 1 (`whoami --verbose`) reports the `github-c3xe` service as the user, and Phase 2
-(`list repos`) succeeds. The workflow does not use `--debug`, because the CLI then prints the
-exchanged Cloudsmith token in the request headers, and the build log is public.
-
-Prerequisite: the `github-c3xe` service in `iduffy-demo` trusts GitHub's issuer
-(`https://token.actions.githubusercontent.com`) with audience `cloudsmith`.
+The script removes the setup when the example passes. If it fails, run
+`cloudsmith credential-helper uninstall maven`, `gradle`, or `sbt` to undo the changes in `~/.m2`,
+`~/.mavenrc`, `~/.gradle`, or `~/.sbt`. The uninstall also removes a setup that you made before
+you ran the example.
 
 ## Google Cloud Build
 
@@ -134,18 +137,14 @@ Prerequisites:
 
 ## Azure DevOps
 
-[`azure-pipelines.yml`](azure-pipelines.yml) installs the CLI from
-[`iduffy/azure-devops`](https://github.com/cloudsmith-io/cloudsmith-cli/tree/iduffy/azure-devops)
-and exercises OIDC auto-discovery against org `iduffy-demo` / service slug `azure-devops-gqgp`.
-Run it from the `cloudsmith-oidc-test` Azure DevOps project (this repo must be connected
-as the pipeline source). The pipeline runs on the self-hosted `Default` pool and maps
-`System.AccessToken` and `System.OidcRequestUri` into the step environment so the detector
-can read them.
+[`azure-pipelines.yml`](azure-pipelines.yml) is the end-to-end test of
+[cloudsmith-io/cloudsmith-cli#425](https://github.com/cloudsmith-io/cloudsmith-cli/pull/425). It
+checks that an OIDC run never prompts for a keyring password. It compares the released CLI with a
+pinned commit, against org `iduffy-demo` / service slug `azure-devops-0v19`. Run it from the
+`cloudsmith-oidc-test` Azure DevOps project with `az pipelines run --id 3 --branch main`. The
+pipeline runs on the self-hosted `Default` pool.
 
-Success: Phase 1 authenticates as `User: azure-devops (slug: azure-devops-gqgp)`; Phase 2
-reports `Source: OIDC ... azure-devops-gqgp` and `list repos` returns repositories.
-
-Prerequisite — the `azure-devops-gqgp` service in `iduffy-demo` must trust:
+Prerequisite — the `azure-devops-0v19` service in `iduffy-demo` must trust:
 
 - **Issuer:** `https://vstoken.dev.azure.com/<accountId>`
 - **Audience:** `api://AzureADTokenExchange` (Azure DevOps ignores any requested audience)

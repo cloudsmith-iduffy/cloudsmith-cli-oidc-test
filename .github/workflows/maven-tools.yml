@@ -13,7 +13,6 @@ env:
   # The CLI also reads CLOUDSMITH_ORG as the workspace whose custom domains it lists.
   CLOUDSMITH_ORG: iduffy-demo
   CLOUDSMITH_REPO: default
-  CLOUDSMITH_SERVICE_SLUG: github-c3xe
 
 jobs:
   example:
@@ -27,7 +26,6 @@ jobs:
           - maven-mavenrc
           - maven-local
           - gradle-global
-          - gradle-local
           - sbt-global
           - sbt-local
     steps:
@@ -38,7 +36,17 @@ jobs:
       - name: Set up Java, Maven, Gradle, sbt, and uv with mise
         uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
 
-      - name: Install the Cloudsmith CLI
+      # The action sets the OIDC environment for every later step, and signs in once to check it.
+      - name: Set up the Cloudsmith CLI with OIDC
+        uses: cloudsmith-io/cloudsmith-cli-action@v3
+        with:
+          oidc-namespace: ${{ env.CLOUDSMITH_ORG }}
+          oidc-service-slug: github-c3xe
+          verify-auth: "true"
+
+      # The released CLI has no `credential-helper install maven`. Inside `mise run`, the CLI from
+      # the pull request comes first on PATH. Remove this step after the CLI release.
+      - name: Install the CLI from cloudsmith-io/cloudsmith-cli#520
         run: mise run cli
 
       - name: Run the example

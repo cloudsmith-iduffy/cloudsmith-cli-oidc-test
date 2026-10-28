@@ -16,7 +16,7 @@ dependencies {
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            artifactId = "maven-tools-gradle-global"
+            artifactId = "maven-tools-gradle"
             from(components["java"])
         }
     }
