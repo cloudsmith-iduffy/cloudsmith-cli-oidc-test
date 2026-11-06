@@ -1,0 +1,51 @@
+name: maven-tools-failures
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+# No id-token permission: the CLI must have no credential for the cli-unauthenticated scenario.
+permissions:
+  contents: read
+
+env:
+  CLOUDSMITH_ORG: iduffy-demo
+  CLOUDSMITH_REPO: default
+
+jobs:
+  failure:
+    name: ${{ matrix.tool }} ${{ matrix.scenario }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: [maven, gradle, sbt]
+        scenario:
+          - cli-missing
+          - cli-unauthenticated
+          - cli-invalid-certs
+          - cli-timeout
+          - install-invalid-certs
+          - tool-missing
+          - tool-broken
+          - relative-location
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Java, Maven, Gradle, sbt, and uv with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          # mise 2026.10.21 fails to lock Maven 3.9.11 for the tasks that use it.
+          version: 2026.10.17
+
+      # The released CLI has no `credential-helper install maven`. Remove this step after the CLI
+      # release.
+      - name: Install the CLI from cloudsmith-io/cloudsmith-cli#595
+        run: mise run cli
+
+      - name: Break ${{ matrix.scenario }} and check that ${{ matrix.tool }} fails cleanly
+        run: mise run failure "${{ matrix.tool }}" "${{ matrix.scenario }}"

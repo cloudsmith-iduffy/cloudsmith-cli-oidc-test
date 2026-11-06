@@ -2,6 +2,7 @@
 .tools/
 .relocated/
 build.log
+failure.log
 target/
 build/
 .gradle/

@@ -105,6 +105,28 @@ Each task runs [`maven-tools/run.sh`](maven-tools/run.sh). The script checks tha
 shows `Using the cloudsmith CLI credential for` both the download URL and the upload URL. The job
 fails if one of these lines is missing, or if a `cloudsmith` command fails.
 
+### maven-tools-failures
+
+[`.github/workflows/maven-tools-failures.yml`](.github/workflows/maven-tools-failures.yml) breaks one
+thing in each job and checks that the failure is clean. `mise run failure <tool> <scenario>` runs
+[`maven-tools/fail.sh`](maven-tools/fail.sh) for Maven, Gradle, and sbt. A job passes only when the
+command has the expected exit status, prints a message that names the cause, and prints no Python
+traceback. The workflow has no `id-token` permission, so the CLI has no credential.
+
+| Scenario | What is broken | Expected result |
+| -- | -- | -- |
+| `cli-missing` | `cloudsmith` is not on `PATH` for the build | The build fails. The log says `The cloudsmith CLI is not on PATH`. |
+| `cli-unauthenticated` | The CLI has no credential | The build fails. The log has the CLI error `Authentication credentials were not provided`. |
+| `cli-invalid-certs` | `REQUESTS_CA_BUNDLE` names a CA that did not sign the Cloudsmith certificate | The build fails. The log has the CLI hint `The TLS certificate is not from a trusted CA`. |
+| `cli-timeout` | `CLOUDSMITH_MAVEN_TOOLS_TIMEOUT=0.001` | The build fails. The log says that the CLI `did not finish in 0.001 seconds`. |
+| `install-invalid-certs` | The same CA for `credential-helper install` | `install` exits with status 1 and shows the TLS hint. |
+| `tool-missing` | Maven, Gradle, or sbt is not on `PATH` | `install` succeeds and uses the default location, with no warning. |
+| `tool-broken` | A `mvn`, `gradle`, or `sbt` that fails | `install` succeeds, uses the default location, and warns that the tool did not report its location. |
+| `relative-location` | A relative `maven.repo.local`, `gradle.user.home`, or `sbt.global.base` | `install` exits with status 1 and says that the path is relative. |
+
+In the `cli-*` scenarios, the extension or plugin logs a warning and the build continues without the
+credential. The build then fails with status 401, before it publishes anything.
+
 To run an example on your machine, sign in to the CLI, set the repository, and run the task:
 
 ```sh

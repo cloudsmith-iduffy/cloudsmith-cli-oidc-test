@@ -73,3 +73,8 @@ run = "../run.sh sbt global"
 description = "sbt: set up one build through project/cloudsmith.sbt, then publish"
 dir = "{{config_root}}/maven-tools/sbt"
 run = "../run.sh sbt local"
+
+[tasks.failure]
+description = "Break one thing that the Maven tools need, and check that it fails cleanly: failure <tool> <scenario>"
+dir = "{{config_root}}"
+run = "maven-tools/fail.sh"
