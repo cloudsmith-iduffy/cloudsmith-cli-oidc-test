@@ -119,24 +119,25 @@ case "${scenario}" in
   cli-missing)
     install_cli_setup
     expect_status fail env PATH="$(path_without cloudsmith)" "${build[@]}"
-    expect_text "The cloudsmith CLI is not on PATH, so no repository gets the CLI credential."
+    expect_text "Cloudsmith: the cloudsmith CLI is not on PATH, so the build gets no credential"
     ;;
   cli-unauthenticated)
     install_cli_setup
     expect_status fail "${build[@]}"
-    expect_text "exited with status 1, so no repository gets the CLI credential."
+    expect_text "Cloudsmith: the cloudsmith CLI is not signed in, or its credential is not valid"
+    expect_text "Sign in with \`cloudsmith auth\`, or set CLOUDSMITH_API_KEY."
     expect_text "Authentication credentials were not provided."
     ;;
   cli-invalid-certs)
     install_cli_setup
     expect_status fail env REQUESTS_CA_BUNDLE="$(wrong_ca)" "${build[@]}"
-    expect_text "so no repository gets the CLI credential."
+    expect_text "Cloudsmith: the cloudsmith CLI failed, so the build gets no credential"
     expect_text "The TLS certificate is not from a trusted CA"
     ;;
   cli-timeout)
     install_cli_setup
     expect_status fail env CLOUDSMITH_MAVEN_TOOLS_TIMEOUT=0.001 "${build[@]}"
-    expect_text "did not finish in 0.001 seconds, so no repository gets the CLI credential."
+    expect_text "Cloudsmith: the cloudsmith CLI did not answer in 0.001 seconds"
     ;;
   install-invalid-certs)
     expect_status fail env REQUESTS_CA_BUNDLE="$(wrong_ca)" \
