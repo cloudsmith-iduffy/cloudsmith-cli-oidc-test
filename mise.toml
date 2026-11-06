@@ -1,3 +1,8 @@
+# Download Maven from Maven Central, not from archive.apache.org, which often times out in CI.
+# The rewrite also covers the URLs in mise.lock and the Maven version of each task.
+[settings.url_replacements]
+"regex:^https://archive\\.apache\\.org/dist/maven/maven-3/([^/]+)/binaries/" = "https://repo1.maven.org/maven2/org/apache/maven/apache-maven/$1/"
+
 [tools]
 java = "temurin-17"
 "aqua:apache/maven" = "3.10.0"
@@ -6,6 +11,8 @@ gradle = "9.8.1"
 uv = "0.13.4"
 
 [env]
+# The version of the Cloudsmith Maven tools that `credential-helper install` must set up.
+CLOUDSMITH_MAVEN_TOOLS_VERSION = "0.2.0"
 # The branch of cloudsmith-io/cloudsmith-cli that `mise run cli` installs: the pull request
 # cloudsmith-io/cloudsmith-cli#595. Remove the `cli` task and these settings after a CLI release
 # has `credential-helper install maven` and the changes of that pull request.

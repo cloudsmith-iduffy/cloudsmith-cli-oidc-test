@@ -81,7 +81,8 @@ the action supplies only the OIDC settings. In that version, `install` and `unin
 Gradle, and sbt where they read their configuration.
 
 [mise](https://mise.jdx.dev/) installs Java, Maven, Gradle, sbt, and uv from
-[`mise.toml`](mise.toml). There is one example project for each tool in
+[`mise.toml`](mise.toml). It downloads Maven from Maven Central, because downloads from
+`archive.apache.org` often time out in CI. There is one example project for each tool in
 [`maven-tools/`](maven-tools). Each `mise run` task is a job in the workflow:
 
 | Task | Command | Changes |
@@ -100,9 +101,10 @@ The `relocated` tasks move the location only through settings that the build too
 used the default location, the build would not load the extension or plugin, and the job would
 fail.
 
-Each task runs [`maven-tools/run.sh`](maven-tools/run.sh). The script checks that the build log
+Each task runs [`maven-tools/run.sh`](maven-tools/run.sh). The script checks that `install` sets up
+version `CLOUDSMITH_MAVEN_TOOLS_VERSION` (0.2.0) of the Maven tools. Then it checks that the build log
 shows `Using the cloudsmith CLI credential for` both the download URL and the upload URL. The job
-fails if one of these lines is missing, or if a `cloudsmith` command fails.
+fails if a check fails, or if a `cloudsmith` command fails.
 
 To run an example on your machine, sign in to the CLI, set the repository, and run the task:
 
