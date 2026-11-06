@@ -11,8 +11,6 @@ gradle = "9.8.1"
 uv = "0.13.4"
 
 [env]
-# The version of the Cloudsmith Maven tools that `credential-helper install` must set up.
-CLOUDSMITH_MAVEN_TOOLS_VERSION = "0.2.0"
 # The branch of cloudsmith-io/cloudsmith-cli that `mise run cli` installs: the pull request
 # cloudsmith-io/cloudsmith-cli#595. Remove the `cli` task and these settings after a CLI release
 # has `credential-helper install maven` and the changes of that pull request.

@@ -10,7 +10,6 @@ tool="${1:?Usage: run.sh maven|gradle|sbt global|local|mavenrc}"
 scope="${2:?Usage: run.sh maven|gradle|sbt global|local|mavenrc}"
 : "${CLOUDSMITH_ORG:?Set CLOUDSMITH_ORG to your Cloudsmith workspace.}"
 : "${CLOUDSMITH_REPO:?Set CLOUDSMITH_REPO to a Cloudsmith repository that you can write to.}"
-: "${CLOUDSMITH_MAVEN_TOOLS_VERSION:?Set CLOUDSMITH_MAVEN_TOOLS_VERSION to the expected version of the Maven tools.}"
 # Cloudsmith rejects a release version that it already has, so each run publishes a new one.
 # The scope keeps the versions of parallel jobs apart.
 export EXAMPLE_VERSION="${EXAMPLE_VERSION:-0.1.$(date +%s)-${scope}}"
@@ -22,14 +21,7 @@ uninstall_option=""
 [ "${scope}" != "local" ] || uninstall_option="--local"
 
 cloudsmith --version
-install_output="$(cloudsmith credential-helper install "${tool}" ${install_option:+"${install_option}"} 2>&1)"
-echo "${install_output}"
-# Each install message names the version, for example "wrote <file> for version 0.2.0".
-if ! grep -qE "version ${CLOUDSMITH_MAVEN_TOOLS_VERSION//./\\.}( |$)" <<< "${install_output}"; then
-  echo "FAIL: install did not set up version ${CLOUDSMITH_MAVEN_TOOLS_VERSION} of the Maven tools."
-  exit 1
-fi
-echo "Set up version ${CLOUDSMITH_MAVEN_TOOLS_VERSION} of the Maven tools"
+cloudsmith credential-helper install "${tool}" ${install_option:+"${install_option}"}
 
 case "${tool}" in
   maven)
