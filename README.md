@@ -76,8 +76,9 @@ has a credential.
 
 The released CLI does not have `credential-helper install maven` yet. Until it does, `mise run cli`
 installs the CLI from
-[cloudsmith-io/cloudsmith-cli#520](https://github.com/cloudsmith-io/cloudsmith-cli/pull/520), and
-the action supplies only the OIDC settings.
+[cloudsmith-io/cloudsmith-cli#595](https://github.com/cloudsmith-io/cloudsmith-cli/pull/595), and
+the action supplies only the OIDC settings. In that version, `install` and `uninstall` ask Maven,
+Gradle, and sbt where they read their configuration.
 
 [mise](https://mise.jdx.dev/) installs Java, Maven, Gradle, sbt, and uv from
 [`mise.toml`](mise.toml). There is one example project for each tool in
@@ -88,9 +89,16 @@ the action supplies only the OIDC settings.
 | `example:maven-global` | `install maven` | `~/.m2/extensions.xml` (Maven 3.10) |
 | `example:maven-mavenrc` | `install maven --mavenrc` | `~/.mavenrc` (Maven 3.9) |
 | `example:maven-local` | `install maven --local` | `.mvn/extensions.xml` of the project (Maven 3.9) |
+| `example:maven-relocated` | `install maven` | the extension goes in `~/relocated-m2`, from `<localRepository>` of [`relocated-settings.xml`](maven-tools/maven/relocated-settings.xml) in `MAVEN_ARGS` (Maven 3.10) |
 | `example:gradle-global` | `install gradle` | `~/.gradle/init.d/cloudsmith.init.gradle.kts` |
+| `example:gradle-relocated` | `install gradle` | `.relocated/gradle/init.d/cloudsmith.init.gradle.kts`, from `-Dgradle.user.home` in `GRADLE_OPTS` |
 | `example:sbt-global` | `install sbt` | `~/.sbt/1.0/plugins/cloudsmith.sbt` |
+| `example:sbt-relocated` | `install sbt` | `.relocated/sbt/plugins/cloudsmith.sbt`, from `-Dsbt.global.base` in `SBT_OPTS` |
 | `example:sbt-local` | `install sbt --local` | `project/cloudsmith.sbt` of the project |
+
+The `relocated` tasks move the location only through settings that the build tool reads. If the CLI
+used the default location, the build would not load the extension or plugin, and the job would
+fail.
 
 Each task runs [`maven-tools/run.sh`](maven-tools/run.sh). The script checks that the build log
 shows `Using the cloudsmith CLI credential for` both the download URL and the upload URL. The job

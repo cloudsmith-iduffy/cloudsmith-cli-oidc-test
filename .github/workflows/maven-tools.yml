@@ -25,8 +25,11 @@ jobs:
           - maven-global
           - maven-mavenrc
           - maven-local
+          - maven-relocated
           - gradle-global
+          - gradle-relocated
           - sbt-global
+          - sbt-relocated
           - sbt-local
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +53,7 @@ jobs:
 
       # The released CLI has no `credential-helper install maven`. Inside `mise run`, the CLI from
       # the pull request comes first on PATH. Remove this step after the CLI release.
-      - name: Install the CLI from cloudsmith-io/cloudsmith-cli#520
+      - name: Install the CLI from cloudsmith-io/cloudsmith-cli#595
         run: mise run cli
 
       - name: Run the example

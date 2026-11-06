@@ -6,9 +6,10 @@ gradle = "9.8.1"
 uv = "0.13.4"
 
 [env]
-# The branch of cloudsmith-io/cloudsmith-cli that `mise run cli` installs. Remove the `cli` task
-# and these settings after a CLI release has `credential-helper install maven`.
-CLOUDSMITH_CLI_REF = "iduffy/credential-helper-jvm"
+# The branch of cloudsmith-io/cloudsmith-cli that `mise run cli` installs: the pull request
+# cloudsmith-io/cloudsmith-cli#595. Remove the `cli` task and these settings after a CLI release
+# has `credential-helper install maven` and the changes of that pull request.
+CLOUDSMITH_CLI_REF = "iduffy/fix-maven-local-repository"
 # Keep that CLI in this checkout, apart from other cloudsmith commands on PATH.
 UV_TOOL_DIR = "{{config_root}}/.tools/uv"
 UV_TOOL_BIN_DIR = "{{config_root}}/.tools/bin"
@@ -35,14 +36,32 @@ dir = "{{config_root}}/maven-tools/maven"
 tools = { "aqua:apache/maven" = "3.9.11" }
 run = "../run.sh maven local"
 
+[tasks."example:maven-relocated"]
+description = "Maven 3.10: a settings file in MAVEN_ARGS moves the local repository, then deploy"
+dir = "{{config_root}}/maven-tools/maven"
+env = { MAVEN_ARGS = "-s {{config_root}}/maven-tools/maven/relocated-settings.xml" }
+run = "../run.sh maven global"
+
 [tasks."example:gradle-global"]
 description = "Gradle: set up every build through an init script, then publish"
 dir = "{{config_root}}/maven-tools/gradle"
 run = "../run.sh gradle global"
 
+[tasks."example:gradle-relocated"]
+description = "Gradle: gradle.user.home in GRADLE_OPTS moves the init scripts, then publish"
+dir = "{{config_root}}/maven-tools/gradle"
+env = { GRADLE_OPTS = "-Dgradle.user.home={{config_root}}/.relocated/gradle" }
+run = "../run.sh gradle global"
+
 [tasks."example:sbt-global"]
 description = "sbt: set up every build through a global plugin, then publish"
 dir = "{{config_root}}/maven-tools/sbt"
+run = "../run.sh sbt global"
+
+[tasks."example:sbt-relocated"]
+description = "sbt: sbt.global.base in SBT_OPTS moves the global plugins, then publish"
+dir = "{{config_root}}/maven-tools/sbt"
+env = { SBT_OPTS = "-Dsbt.global.base={{config_root}}/.relocated/sbt" }
 run = "../run.sh sbt global"
 
 [tasks."example:sbt-local"]

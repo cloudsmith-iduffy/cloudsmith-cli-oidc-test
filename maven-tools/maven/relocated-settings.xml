@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Moves the local repository. Maven resolves ${user.home}, and the CLI asks Maven for the result. -->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0">
+  <localRepository>${user.home}/relocated-m2</localRepository>
+</settings>

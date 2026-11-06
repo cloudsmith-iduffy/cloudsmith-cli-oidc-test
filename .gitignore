@@ -1,5 +1,6 @@
 .env
 .tools/
+.relocated/
 build.log
 target/
 build/
